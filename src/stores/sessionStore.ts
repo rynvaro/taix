@@ -17,6 +17,7 @@ export type { SavedSession, SessionGroup };
 
 export interface Session extends SessionInfo {
   isActive: boolean;
+  config: SessionConfig;
 }
 
 export interface TerminalSize {
@@ -35,7 +36,7 @@ interface SessionState {
   groups: SessionGroup[];
 
   // PTY actions
-  createSession: (config: SessionConfig) => Promise<string>;
+  createSession: (config: SessionConfig, opts?: { skipLayout?: boolean }) => Promise<string>;
   closeSession: (id: string) => Promise<void>;
   setActiveSession: (id: string) => void;
   markSessionExited: (id: string) => void;
@@ -46,6 +47,7 @@ interface SessionState {
   // Saved-session actions
   loadSavedSessions: () => Promise<void>;
   saveCurrentSession: (id: string, name: string, config: SessionConfig) => Promise<void>;
+  updateSavedSession: (savedId: string, name: string, config: SessionConfig) => Promise<void>;
   deleteSavedSession: (id: string) => Promise<void>;
   reorderSavedSessions: (ids: string[]) => Promise<void>;
 
@@ -65,7 +67,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // ── PTY actions ─────────────────────────────────────────────────────────────
 
-  createSession: async (config) => {
+  createSession: async (config, opts) => {
     const id = await ptyCreate(config);
     const title =
       config.type === "ssh"
@@ -76,15 +78,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       title,
       startedAt: new Date().toISOString(),
       isActive: true,
+      config,
     };
     set((s) => ({
       sessions: [...s.sessions, info],
-      activeSessionId: s.activeSessionId ?? id,
+      activeSessionId: id,
     }));
-    // Initialize layout tree if this is the first session.
-    const { layout, initLayout } = useUiStore.getState();
-    if (layout === null) {
-      initLayout(id);
+    // Initialize/replace layout unless this is a split (skipLayout = true).
+    if (!opts?.skipLayout) {
+      useUiStore.getState().initLayout(id);
     }
     return id;
   },
@@ -162,6 +164,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         ...s.savedSessions.filter((ss) => ss.id !== id),
         session,
       ],
+    }));
+  },
+
+  updateSavedSession: async (savedId, name, config) => {
+    const existing = get().savedSessions.find((s) => s.id === savedId);
+    if (!existing) return;
+    const now = new Date().toISOString();
+    const session: SavedSession = {
+      ...existing,
+      name,
+      sessionType: (config as { type: string }).type ?? "local",
+      config: JSON.stringify(config),
+      updatedAt: now,
+    };
+    await sessionsSave(session);
+    set((s) => ({
+      savedSessions: s.savedSessions.map((ss) => (ss.id === savedId ? session : ss)),
     }));
   },
 

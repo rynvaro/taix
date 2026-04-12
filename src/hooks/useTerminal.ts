@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -13,6 +13,7 @@ export interface UseTerminalResult {
   terminalRef: React.RefObject<Terminal | null>;
   fitAddonRef: React.RefObject<FitAddon | null>;
   searchAddonRef: React.RefObject<SearchAddon | null>;
+  connected: boolean;
 }
 
 export function useTerminal(
@@ -22,6 +23,7 @@ export function useTerminal(
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
+  const [connected, setConnected] = useState(false);
   const appearance = useSettingsStore((s) => s.config?.appearance);
   const markExited = useSessionStore((s) => s.markSessionExited);
   const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle);
@@ -84,13 +86,17 @@ export function useTerminal(
     let exitUnlisten: (() => void) | null = null;
     let titleUnlisten: (() => void) | null = null;
 
-    onPtyOutput(sessionId, (data) => terminal.write(data)).then((fn) => {
+    onPtyOutput(sessionId, (data) => {
+      terminal.write(data);
+      setConnected(true);
+    }).then((fn) => {
       outputUnlisten = fn;
     });
 
     onPtyExit(sessionId, () => {
       terminal.writeln("\r\n\x1b[90m[Process exited]\x1b[0m");
       markExited(sessionId);
+      setConnected(true); // Clear overlay even if process exits without output
     }).then((fn) => {
       exitUnlisten = fn;
     });
@@ -114,6 +120,6 @@ export function useTerminal(
     };
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { terminalRef, fitAddonRef, searchAddonRef };
+  return { terminalRef, fitAddonRef, searchAddonRef, connected };
 }
 

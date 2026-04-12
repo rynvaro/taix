@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { useTerminal } from "../../hooks/useTerminal";
 import { useResize } from "../../hooks/useResize";
 import { useUiStore } from "../../stores/uiStore";
+import { useSessionStore } from "../../stores/sessionStore";
 import { TerminalSearch } from "./TerminalSearch";
+import { ConnectingOverlay } from "./ConnectingOverlay";
 
 interface TerminalTabProps {
   sessionId: string;
@@ -11,8 +13,18 @@ interface TerminalTabProps {
 
 export function TerminalTab({ sessionId, isActive }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminalRef, fitAddonRef, searchAddonRef } = useTerminal(sessionId, containerRef);
+  const { terminalRef, fitAddonRef, searchAddonRef, connected } = useTerminal(sessionId, containerRef);
   useResize(containerRef, fitAddonRef, terminalRef, sessionId);
+
+  // Determine if this is an SSH session from its stored config (stable, never changes).
+  const sessionConfig = useSessionStore(
+    (s) => s.sessions.find((sess) => sess.id === sessionId)?.config
+  );
+  const isSSH = sessionConfig?.type === "ssh";
+  const sshTarget =
+    isSSH && sessionConfig?.type === "ssh"
+      ? `${sessionConfig.username}@${sessionConfig.host}`
+      : "";
 
   const openSearch = useUiStore((s) => s.openSearch);
   const closeSearch = useUiStore((s) => s.closeSearch);
@@ -59,6 +71,9 @@ export function TerminalTab({ sessionId, isActive }: TerminalTabProps) {
       className={`relative w-full h-full ${isActive ? "" : "hidden"}`}
       data-session-id={sessionId}
     >
+      {isSSH && (
+        <ConnectingOverlay target={sshTarget} visible={!connected} />
+      )}
       {isSearchOpen && searchAddonRef.current && (
         <TerminalSearch
           sessionId={sessionId}

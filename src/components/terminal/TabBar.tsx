@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSessionStore } from "../../stores/sessionStore";
-import { useUiStore } from "../../stores/uiStore";
+import { useUiStore, collectLeafIds } from "../../stores/uiStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { ptyDefaultShell } from "../../services/pty";
 import { NewSessionModal } from "../session/NewSessionModal";
@@ -18,7 +18,7 @@ export function TabBar() {
   const createSession = useSessionStore((s) => s.createSession);
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const reorderTabs = useSessionStore((s) => s.reorderTabs);
-  const { activePaneId, splitPane, closePane } = useUiStore();
+  const { activePaneId, splitPane, closePane, layout, initLayout } = useUiStore();
   const shellConfig = useSettingsStore((s) => s.config?.shell);
 
   const [showModal, setShowModal] = useState(false);
@@ -79,7 +79,7 @@ export function TabBar() {
       args: shellConfig?.args ?? [],
       env: shellConfig?.env ?? {},
       cwd: null,
-    });
+    }, { skipLayout: true });
     splitPane(targetId, direction, newId);
   };
 
@@ -133,7 +133,21 @@ export function TabBar() {
             onDrop={(e) => handleDrop(e, session.id)}
             onDragLeave={() => setDragOver(null)}
             onContextMenu={(e) => handleContextMenu(e, session.id)}
-            onClick={() => setActiveSession(session.id)}
+            onClick={() => {
+              setActiveSession(session.id);
+              if (layout?.type === "split") {
+                // In split mode: activate the pane if it's in the tree;
+                // otherwise leave split mode (keep-alive pool will show it).
+                const leafIds = collectLeafIds(layout);
+                if (leafIds.includes(session.id)) {
+                  useUiStore.getState().setActivePaneId(session.id);
+                } else {
+                  initLayout(session.id);
+                }
+              }
+              // In tab mode (leaf / null): just setActiveSession above is enough.
+              // Keep-alive pool shows the right session via CSS — no remount needed.
+            }}
             className={[
               "flex items-center gap-1.5 h-full px-3 text-sm border-r border-neutral-700",
               "w-36 shrink-0 transition-colors focus:outline-none",

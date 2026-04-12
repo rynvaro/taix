@@ -1,29 +1,49 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSessionStore, SavedSession, SessionGroup } from "../../stores/sessionStore";
+import { NewSessionModal } from "./NewSessionModal";
 
 // ── Single saved-session row ─────────────────────────────────────────────────
 
 interface SessionItemProps {
   session: SavedSession;
   onOpen: (session: SavedSession) => void;
+  onEdit: (session: SavedSession) => void;
   onDelete: (id: string) => void;
 }
 
-function SavedSessionItem({ session, onOpen, onDelete }: SessionItemProps) {
+function SavedSessionItem({ session, onOpen, onEdit, onDelete }: SessionItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
-  // Close menu on outside click
+  // Close menu on outside click / Escape
   useEffect(() => {
     if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
+    const clickHandler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", clickHandler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", clickHandler);
+      document.removeEventListener("keydown", keyHandler);
+    };
   }, [menuOpen]);
+
+  const openMenu = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setMenuOpen(true);
+  };
 
   const icon = session.sessionType === "ssh" ? "⛓" : ">";
 
@@ -32,22 +52,26 @@ function SavedSessionItem({ session, onOpen, onDelete }: SessionItemProps) {
       <button
         onDoubleClick={() => onOpen(session)}
         className="flex items-center gap-2 flex-1 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 rounded transition-colors text-left truncate"
-        title={session.name + ' (double-click to open)'}
+        title={session.name + " (double-click to open)"}
       >
         <span className="shrink-0">{icon}</span>
         <span className="truncate">{session.name}</span>
       </button>
       <button
-        onClick={() => setMenuOpen((v) => !v)}
+        ref={btnRef}
+        onClick={openMenu}
         className="shrink-0 px-1 py-1 text-neutral-500 hover:text-neutral-200 opacity-0 group-hover:opacity-100 transition-opacity rounded"
         aria-label="Session options"
       >
         ⋯
       </button>
-      {menuOpen && (
+
+      {/* Render dropdown via portal to escape overflow-hidden clipping */}
+      {menuOpen && createPortal(
         <div
           ref={menuRef}
-          className="absolute right-0 top-8 z-50 min-w-[120px] bg-neutral-800 border border-neutral-700 rounded shadow-lg py-1"
+          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+          className="min-w-[140px] bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl py-1"
         >
           <button
             onClick={() => { onOpen(session); setMenuOpen(false); }}
@@ -56,12 +80,20 @@ function SavedSessionItem({ session, onOpen, onDelete }: SessionItemProps) {
             Open
           </button>
           <button
+            onClick={() => { onEdit(session); setMenuOpen(false); }}
+            className="w-full px-3 py-1.5 text-sm text-left text-neutral-300 hover:bg-neutral-700"
+          >
+            Edit
+          </button>
+          <div className="my-1 border-t border-neutral-700" />
+          <button
             onClick={() => { onDelete(session.id); setMenuOpen(false); }}
             className="w-full px-3 py-1.5 text-sm text-left text-red-400 hover:bg-neutral-700"
           >
             Delete
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -70,13 +102,14 @@ function SavedSessionItem({ session, onOpen, onDelete }: SessionItemProps) {
 // ── Group section ─────────────────────────────────────────────────────────────
 
 interface GroupSectionProps {
-  group: SessionGroup | null; // null = ungrouped
+  group: SessionGroup | null;
   sessions: SavedSession[];
   onOpen: (session: SavedSession) => void;
+  onEdit: (session: SavedSession) => void;
   onDelete: (id: string) => void;
 }
 
-function GroupSection({ group, sessions, onOpen, onDelete }: GroupSectionProps) {
+function GroupSection({ group, sessions, onOpen, onEdit, onDelete }: GroupSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
   const label = group ? group.name : "Ungrouped";
   const dot = group?.color ?? "#6b7280";
@@ -101,6 +134,7 @@ function GroupSection({ group, sessions, onOpen, onDelete }: GroupSectionProps) 
           key={s.id}
           session={s}
           onOpen={onOpen}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}
@@ -112,12 +146,13 @@ function GroupSection({ group, sessions, onOpen, onDelete }: GroupSectionProps) 
 
 export function SessionList() {
   const createSession = useSessionStore((s) => s.createSession);
-  const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const savedSessions = useSessionStore((s) => s.savedSessions);
   const groups = useSessionStore((s) => s.groups);
   const loadSavedSessions = useSessionStore((s) => s.loadSavedSessions);
   const loadGroups = useSessionStore((s) => s.loadGroups);
   const deleteSavedSession = useSessionStore((s) => s.deleteSavedSession);
+
+  const [editingSession, setEditingSession] = useState<SavedSession | null>(null);
 
   useEffect(() => {
     loadSavedSessions().catch(console.error);
@@ -127,8 +162,7 @@ export function SessionList() {
   const openSaved = async (session: SavedSession) => {
     try {
       const config = JSON.parse(session.config);
-      const id = await createSession(config);
-      setActiveSession(id);
+      await createSession(config);
     } catch (e) {
       console.error("[SessionList] failed to restore session:", e);
     }
@@ -157,27 +191,38 @@ export function SessionList() {
   }
 
   return (
-    <div className="flex flex-col gap-1 p-2 overflow-y-auto">
-      {/* Grouped sections */}
-      {groups.map((g) => (
-        <GroupSection
-          key={g.id}
-          group={g}
-          sessions={groupMap.get(g.id) ?? []}
-          onOpen={openSaved}
-          onDelete={deleteSavedSession}
+    <>
+      <div className="flex flex-col gap-1 p-2 overflow-y-auto">
+        {/* Grouped sections */}
+        {groups.map((g) => (
+          <GroupSection
+            key={g.id}
+            group={g}
+            sessions={groupMap.get(g.id) ?? []}
+            onOpen={openSaved}
+            onEdit={setEditingSession}
+            onDelete={deleteSavedSession}
+          />
+        ))}
+        {/* Ungrouped */}
+        {(groupMap.get(null) ?? []).map((s) => (
+          <SavedSessionItem
+            key={s.id}
+            session={s}
+            onOpen={openSaved}
+            onEdit={setEditingSession}
+            onDelete={deleteSavedSession}
+          />
+        ))}
+      </div>
+
+      {/* Edit modal rendered via portal — outside the overflow-hidden sidebar */}
+      {editingSession && (
+        <NewSessionModal
+          editSession={editingSession}
+          onClose={() => setEditingSession(null)}
         />
-      ))}
-      {/* Ungrouped */}
-      {(groupMap.get(null) ?? []).map((s) => (
-        <SavedSessionItem
-          key={s.id}
-          session={s}
-          onOpen={openSaved}
-          onDelete={deleteSavedSession}
-        />
-      ))}
-    </div>
+      )}
+    </>
   );
 }
-

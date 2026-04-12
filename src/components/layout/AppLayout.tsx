@@ -34,7 +34,7 @@ export function AppLayout() {
           args: shellConfig?.args ?? [],
           env: shellConfig?.env ?? {},
           cwd: null,
-        });
+        }, { skipLayout: true });
         splitPane(activePaneId, "horizontal", newId);
         return;
       }
@@ -51,7 +51,7 @@ export function AppLayout() {
           args: shellConfig?.args ?? [],
           env: shellConfig?.env ?? {},
           cwd: null,
-        });
+        }, { skipLayout: true });
         splitPane(activePaneId, "vertical", newId);
         return;
       }

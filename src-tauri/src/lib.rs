@@ -14,7 +14,7 @@ use commands::sessions::{
     groups_create, groups_delete, groups_list, sessions_delete, sessions_get, sessions_list,
     sessions_reorder, sessions_save,
 };
-use commands::system::open_url;
+use commands::system::{open_url, ssh_test_connection};
 use state::AppState;
 use tauri_specta::{collect_commands, Builder};
 
@@ -43,6 +43,7 @@ fn make_builder() -> Builder<tauri::Wry> {
             groups_create,
             groups_delete,
             open_url,
+            ssh_test_connection,
         ])
 }
 

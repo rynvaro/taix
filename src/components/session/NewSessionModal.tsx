@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { useSessionStore } from "../../stores/sessionStore";
+import { useSessionStore, SavedSession } from "../../stores/sessionStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { ptyDefaultShell } from "../../services/pty";
+import { sshTestConnection } from "../../services/system";
 import { SessionConfig, SshConfig, SshAuth } from "../../types/bindings";
 
 type TabId = "local" | "ssh";
 
 interface Props {
   onClose: () => void;
+  /** When provided, the modal opens in edit mode (pre-filled, no new session launched). */
+  editSession?: SavedSession;
 }
 
 // ── Shared input / label styles ───────────────────────────────────────────────
@@ -102,6 +105,14 @@ function SshForm({
   onChange: (v: SshFormState) => void;
 }) {
   const f = (k: keyof SshFormState, v: string) => onChange({ ...value, [k]: v });
+  // Common props to prevent the OS/browser from auto-capitalizing or auto-correcting
+  // technical values like hostnames, usernames, and key paths.
+  const noAuto = {
+    autoCapitalize: "none" as const,
+    autoCorrect: "off",
+    autoComplete: "off",
+    spellCheck: false,
+  } as const;
   return (
     <div className="flex flex-col gap-4">
       <Field label="Profile name">
@@ -118,6 +129,7 @@ function SshForm({
         <div className="flex-1 flex flex-col gap-1.5">
           <span className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Host</span>
           <input
+            {...noAuto}
             className={inputCls}
             value={value.host}
             onChange={(e) => f("host", e.target.value)}
@@ -131,12 +143,14 @@ function SshForm({
             value={value.port}
             onChange={(e) => f("port", e.target.value)}
             placeholder="22"
+            inputMode="numeric"
           />
         </div>
       </div>
 
       <Field label="Username">
         <input
+          {...noAuto}
           className={inputCls}
           value={value.username}
           onChange={(e) => f("username", e.target.value)}
@@ -159,6 +173,7 @@ function SshForm({
       {value.authType === "privateKey" && (
         <Field label="Key file path">
           <input
+            {...noAuto}
             className={inputCls}
             value={value.keyPath}
             onChange={(e) => f("keyPath", e.target.value)}
@@ -169,6 +184,7 @@ function SshForm({
 
       <Field label="Remote initial directory (optional)">
         <input
+          {...noAuto}
           className={inputCls}
           value={value.cwd}
           onChange={(e) => f("cwd", e.target.value)}
@@ -181,14 +197,19 @@ function SshForm({
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export function NewSessionModal({ onClose }: Props) {
+export function NewSessionModal({ onClose, editSession }: Props) {
   const createSession = useSessionStore((s) => s.createSession);
   const saveCurrentSession = useSessionStore((s) => s.saveCurrentSession);
+  const updateSavedSession = useSessionStore((s) => s.updateSavedSession);
   const shellConfig = useSettingsStore((s) => s.config?.shell);
+
+  const isEdit = !!editSession;
 
   const [activeTab, setActiveTab] = useState<TabId>("local");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const [localForm, setLocalForm] = useState<LocalFormState>({
     shell: shellConfig?.defaultShell ?? "",
@@ -205,8 +226,36 @@ export function NewSessionModal({ onClose }: Props) {
     keyPath: "",
     cwd: "",
   });
-  // SSH: save by default
   const [sshSave, setSshSave] = useState(true);
+
+  // Pre-fill from editSession
+  useEffect(() => {
+    if (!editSession) return;
+    try {
+      const cfg = JSON.parse(editSession.config) as SessionConfig;
+      if (cfg.type === "ssh") {
+        setActiveTab("ssh");
+        setSshForm({
+          name: editSession.name,
+          host: cfg.host,
+          port: cfg.port.toString(),
+          username: cfg.username,
+          authType: cfg.auth.type as SshAuthType,
+          keyPath: cfg.auth.type === "privateKey" ? cfg.auth.path : "",
+          cwd: cfg.cwd ?? "",
+        });
+      } else {
+        setActiveTab("local");
+        setLocalForm({
+          shell: cfg.shell,
+          args: cfg.args.join(" "),
+          cwd: cfg.cwd ?? "",
+        });
+      }
+    } catch {
+      /* ignore parse errors */
+    }
+  }, [editSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!localForm.shell) {
@@ -250,6 +299,38 @@ export function NewSessionModal({ onClose }: Props) {
       ? !!localForm.shell.trim()
       : !!sshForm.host.trim() && !!sshForm.username.trim();
 
+  const handleTest = async () => {
+    if (!sshForm.host.trim()) return;
+    setTestStatus(null);
+    setTesting(true);
+    try {
+      const msg = await sshTestConnection(sshForm.host.trim(), parseInt(sshForm.port, 10) || 22);
+      setTestStatus({ ok: true, msg });
+    } catch (e) {
+      setTestStatus({ ok: false, msg: (e as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!editSession) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const config = buildConfig();
+      const name = activeTab === "ssh"
+        ? (sshForm.name.trim() || `${sshForm.username}@${sshForm.host}`)
+        : localForm.shell.split("/").pop() ?? "shell";
+      await updateSavedSession(editSession.id, name, config);
+      onClose();
+    } catch (e) {
+      setError((e as Error).message ?? "Save failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleConnect = async () => {
     if (!canConnect) return;
     setError(null);
@@ -257,7 +338,6 @@ export function NewSessionModal({ onClose }: Props) {
     try {
       const config = buildConfig();
       const id = await createSession(config);
-      // SSH: save profile if opted in
       if (activeTab === "ssh" && sshSave) {
         const name = sshForm.name.trim() || `${sshForm.username}@${sshForm.host}`;
         await saveCurrentSession(id, name, config);
@@ -281,14 +361,16 @@ export function NewSessionModal({ onClose }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className="bg-neutral-850 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl w-[480px] max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl w-[480px] max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-3 px-7 pt-5 pb-4">
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-white">New Session</h2>
+            <h2 className="text-base font-semibold text-white">
+              {isEdit ? "Edit Session" : "New Session"}
+            </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              {activeTab === "local" ? "Open a local shell in a new tab" : "Connect to a remote server via SSH"}
+              {activeTab === "local" ? "Local shell settings" : "SSH connection settings"}
             </p>
           </div>
           <button
@@ -300,26 +382,28 @@ export function NewSessionModal({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="px-7 mb-4">
-          <div className="flex gap-1 p-1 bg-neutral-900 rounded-lg">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={[
-                  "flex items-center gap-2 flex-1 justify-center py-1.5 px-3 rounded-md text-sm font-medium transition-all",
-                  activeTab === tab.id
-                    ? "bg-neutral-700 text-white shadow-sm"
-                    : "text-neutral-400 hover:text-neutral-200",
-                ].join(" ")}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
+        {/* Tab switcher — hidden in edit mode (type can't change) */}
+        {!isEdit && (
+          <div className="px-7 mb-4">
+            <div className="flex gap-1 p-1 bg-neutral-900 rounded-lg">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={[
+                    "flex items-center gap-2 flex-1 justify-center py-1.5 px-3 rounded-md text-sm font-medium transition-all",
+                    activeTab === tab.id
+                      ? "bg-neutral-700 text-white shadow-sm"
+                      : "text-neutral-400 hover:text-neutral-200",
+                  ].join(" ")}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Form body */}
         <div className="flex-1 overflow-y-auto px-7 pb-4 pt-1">
@@ -327,28 +411,40 @@ export function NewSessionModal({ onClose }: Props) {
             <LocalForm value={localForm} onChange={setLocalForm} />
           ) : (
             <>
-              <SshForm value={sshForm} onChange={setSshForm} />
-              {/* Save toggle for SSH */}
-              <label className="flex items-center gap-2.5 mt-5 cursor-pointer select-none">
-                <div
-                  onClick={() => setSshSave((v) => !v)}
-                  className={[
-                    "relative w-8 h-4.5 rounded-full transition-colors cursor-pointer",
-                    sshSave ? "bg-blue-600" : "bg-neutral-600",
-                  ].join(" ")}
-                  style={{ width: 32, height: 18 }}
-                >
+              <SshForm value={sshForm} onChange={(v) => { setSshForm(v); setTestStatus(null); }} />
+              {/* Save toggle — only for new sessions */}
+              {!isEdit && (
+                <label className="flex items-center gap-2.5 mt-5 cursor-pointer select-none">
                   <div
+                    onClick={() => setSshSave((v) => !v)}
                     className={[
-                      "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform",
-                      sshSave ? "translate-x-[14px]" : "translate-x-0.5",
+                      "relative rounded-full transition-colors cursor-pointer shrink-0",
+                      sshSave ? "bg-blue-600" : "bg-neutral-600",
                     ].join(" ")}
-                  />
+                    style={{ width: 32, height: 18 }}
+                  >
+                    <div
+                      className={[
+                        "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform",
+                        sshSave ? "translate-x-[14px]" : "translate-x-0.5",
+                      ].join(" ")}
+                    />
+                  </div>
+                  <span className="text-sm text-neutral-300">Save this connection for future use</span>
+                </label>
+              )}
+              {/* Test status badge */}
+              {testStatus && (
+                <div className={[
+                  "mt-3 flex items-start gap-2 px-3 py-2 rounded-lg text-xs",
+                  testStatus.ok
+                    ? "bg-green-950/50 border border-green-800 text-green-300"
+                    : "bg-red-950/60 border border-red-800 text-red-300",
+                ].join(" ")}>
+                  <span>{testStatus.ok ? "✓" : "✕"}</span>
+                  <span>{testStatus.msg}</span>
                 </div>
-                <span className="text-sm text-neutral-300">
-                  Save this connection for future use
-                </span>
-              </label>
+              )}
             </>
           )}
 
@@ -361,35 +457,69 @@ export function NewSessionModal({ onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-7 py-4 border-t border-neutral-700 mt-2">
+        <div className="flex items-center gap-3 px-7 py-4 border-t border-neutral-700 mt-2">
+          {/* Test connection button (SSH only) */}
+          {activeTab === "ssh" && (
+            <button
+              onClick={handleTest}
+              disabled={testing || !sshForm.host.trim()}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-neutral-400 hover:text-neutral-100 rounded-lg border border-neutral-700 hover:border-neutral-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {testing
+                ? <span className="inline-block w-3 h-3 border-2 border-neutral-400/30 border-t-neutral-400 rounded-full animate-spin" />
+                : "⚡"}
+              Test
+            </button>
+          )}
+
+          <div className="flex-1" />
+
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-neutral-400 hover:text-neutral-100 rounded-lg hover:bg-neutral-700 transition-colors"
           >
             Cancel
           </button>
-          <button
-            onClick={handleConnect}
-            disabled={loading || !canConnect}
-            className={[
-              "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
-              canConnect && !loading
-                ? "bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
-                : "bg-neutral-700 text-neutral-500 cursor-not-allowed",
-            ].join(" ")}
-          >
-            {loading ? (
-              <>
-                <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Connecting…
-              </>
-            ) : (
-              <>
-                <span>{activeTab === "ssh" ? "⛓" : "⌨"}</span>
-                Connect
-              </>
-            )}
-          </button>
+
+          {isEdit ? (
+            <button
+              onClick={handleSaveChanges}
+              disabled={loading || !canConnect}
+              className={[
+                "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                canConnect && !loading
+                  ? "bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
+                  : "bg-neutral-700 text-neutral-500 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {loading
+                ? <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : "Save Changes"}
+            </button>
+          ) : (
+            <button
+              onClick={handleConnect}
+              disabled={loading || !canConnect}
+              className={[
+                "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                canConnect && !loading
+                  ? "bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
+                  : "bg-neutral-700 text-neutral-500 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {loading ? (
+                <>
+                  <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Connecting…
+                </>
+              ) : (
+                <>
+                  <span>{activeTab === "ssh" ? "⛓" : "⌨"}</span>
+                  Connect
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -121,10 +121,19 @@ impl PtySession {
                 builder.arg("-t"); // double -tt overrides "no tty" heuristic
                 builder.arg("-p");
                 builder.arg(cfg.port.to_string());
+                // Accept new host keys without prompting (prevents first-connect hang).
+                builder.arg("-o");
+                builder.arg("StrictHostKeyChecking=accept-new");
                 match &cfg.auth {
                     SshAuth::PrivateKey { path } => {
                         builder.arg("-i");
                         builder.arg(path);
+                        // Disable password/keyboard fallback so the user isn't
+                        // prompted for a password when the key is rejected.
+                        builder.arg("-o");
+                        builder.arg("PreferredAuthentications=publickey");
+                        builder.arg("-o");
+                        builder.arg("PasswordAuthentication=no");
                     }
                     SshAuth::SshAgent => {
                         // SSH_AUTH_SOCK is inherited from the parent process environment

@@ -42,6 +42,11 @@ export const commands = {
 	groupsDelete: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("groups_delete", { id })),
 	// Opens a URL in the system default browser.
 	openUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_url", { url })),
+	/**
+	 *  Tests whether an SSH host:port is reachable via TCP (5 s timeout).
+	 *  Resolves hostnames (including /etc/hosts entries) via the OS resolver before connecting.
+	 */
+	sshTestConnection: (host: string, port: number) => typedError<string, AppError>(__TAURI_INVOKE("ssh_test_connection", { host, port })),
 };
 
 /* Types */

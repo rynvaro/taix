@@ -111,7 +111,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   splitPane: (targetSessionId, direction, newSessionId) => {
     const { layout } = get();
-    if (!layout) return;
+    // Bootstrap a single-leaf layout if none exists yet.
+    const rootLayout: PaneLayout = layout ?? { type: "leaf", sessionId: targetSessionId };
     const split: PaneLayout = {
       type: "split",
       direction,
@@ -120,7 +121,7 @@ export const useUiStore = create<UiState>((set, get) => ({
       second: { type: "leaf", sessionId: newSessionId },
     };
     set({
-      layout: replaceLeaf(layout, targetSessionId, split),
+      layout: replaceLeaf(rootLayout, targetSessionId, split),
       activePaneId: newSessionId,
     });
   },

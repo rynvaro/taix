@@ -6,13 +6,19 @@ import { PaneContainer } from "../terminal/PaneContainer";
 
 /**
  * Renders the terminal area.
- * - When a split-pane layout exists in uiStore, renders the recursive PaneContainer.
- * - Falls back to the keep-alive tab stack for backwards compatibility.
+ *
+ * Two modes:
+ *  - Split mode  (layout.type === "split"): PaneContainer handles spatial layout.
+ *  - Tab mode    (no layout, or layout is a leaf): keep-alive pool — all TerminalTabs
+ *    stay mounted; CSS show/hide switches the active one. This prevents xterm from
+ *    being recreated (and cleared) on every tab switch.
  */
 export function TerminalPane() {
   const sessions = useSessionStore((s) => s.sessions);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const layout = useUiStore((s) => s.layout);
+
+  const isSplit = layout?.type === "split";
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -23,9 +29,11 @@ export function TerminalPane() {
             Press <kbd className="mx-1 px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 text-xs">+</kbd> to open a new terminal
           </div>
         )}
-        {layout ? (
-          <PaneContainer layout={layout} />
+        {isSplit ? (
+          // Split mode: PaneContainer manages sizing and dividers.
+          <PaneContainer layout={layout!} />
         ) : (
+          // Tab mode: keep-alive pool — sessions stay mounted, only visibility changes.
           sessions.map((session) => (
             <div
               key={session.id}
