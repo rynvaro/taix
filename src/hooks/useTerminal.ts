@@ -13,6 +13,7 @@ export interface UseTerminalResult {
   terminalRef: React.RefObject<Terminal | null>;
   fitAddonRef: React.RefObject<FitAddon | null>;
   searchAddonRef: React.RefObject<SearchAddon | null>;
+  searchAddon: SearchAddon | null;
   connected: boolean;
 }
 
@@ -24,6 +25,7 @@ export function useTerminal(
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const [connected, setConnected] = useState(false);
+  const [searchAddon, setSearchAddon] = useState<SearchAddon | null>(null);
   const appearance = useSettingsStore((s) => s.config?.appearance);
   const markExited = useSessionStore((s) => s.markSessionExited);
   const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle);
@@ -48,7 +50,7 @@ export function useTerminal(
     });
 
     const fitAddon = new FitAddon();
-    const searchAddon = new SearchAddon();
+    const searchAddonInst = new SearchAddon();
     const webLinksAddon = new WebLinksAddon(
       (event, url) => {
         // Open URL on Cmd+Click (macOS) or Ctrl+Click (Windows/Linux)
@@ -61,16 +63,21 @@ export function useTerminal(
     );
 
     terminal.loadAddon(fitAddon);
-    terminal.loadAddon(searchAddon);
+    terminal.loadAddon(searchAddonInst);
     terminal.loadAddon(webLinksAddon);
     terminal.open(el);
 
-    // Small delay before fit to let the DOM settle
-    requestAnimationFrame(() => fitAddon.fit());
-
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
-    searchAddonRef.current = searchAddon;
+    searchAddonRef.current = searchAddonInst;
+
+    // Small delay before fit to let the DOM settle; also set searchAddon state
+    // here (async) so it's available for render without triggering a synchronous
+    // cascading re-render inside the effect body.
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      setSearchAddon(searchAddonInst);
+    });
 
     // Forward keystrokes to PTY
     const dataDisposable = terminal.onData(async (data) => {
@@ -117,9 +124,10 @@ export function useTerminal(
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
+      setSearchAddon(null);
     };
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { terminalRef, fitAddonRef, searchAddonRef, connected };
+  return { terminalRef, fitAddonRef, searchAddonRef, searchAddon, connected };
 }
 

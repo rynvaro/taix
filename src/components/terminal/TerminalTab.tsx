@@ -13,7 +13,7 @@ interface TerminalTabProps {
 
 export function TerminalTab({ sessionId, isActive }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { terminalRef, fitAddonRef, searchAddonRef, connected } = useTerminal(sessionId, containerRef);
+  const { terminalRef, fitAddonRef, searchAddon, connected } = useTerminal(sessionId, containerRef);
   useResize(containerRef, fitAddonRef, terminalRef, sessionId);
 
   // Determine if this is an SSH session from its stored config (stable, never changes).
@@ -74,10 +74,10 @@ export function TerminalTab({ sessionId, isActive }: TerminalTabProps) {
       {isSSH && (
         <ConnectingOverlay target={sshTarget} visible={!connected} />
       )}
-      {isSearchOpen && searchAddonRef.current && (
+      {isSearchOpen && searchAddon && (
         <TerminalSearch
           sessionId={sessionId}
-          searchAddon={searchAddonRef.current}
+          searchAddon={searchAddon}
           onClose={() => {
             closeSearch(sessionId);
             terminalRef.current?.focus();

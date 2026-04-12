@@ -255,7 +255,7 @@ export function NewSessionModal({ onClose, editSession }: Props) {
     } catch {
       /* ignore parse errors */
     }
-  }, [editSession]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editSession]);
 
   useEffect(() => {
     if (!localForm.shell) {
