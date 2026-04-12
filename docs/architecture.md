@@ -787,34 +787,34 @@ component tests（vitest + @testing-library/react）
 
 ## 10. 实施路线图
 
-### Phase 1 — MVP 骨架（目标：4 周）
+### Phase 1 — MVP 骨架 ✅ 已完成（2026-04-12）
 
 **Week 1：项目初始化和 PTY 验证**
-- [ ] `cargo tauri init` 创建项目骨架
-- [ ] 配置 `vite` + `TypeScript` + `tailwindcss`
-- [ ] 集成 `portable-pty`，实现最简单的 PTY session 创建
-- [ ] 集成 `xterm.js`，实现输入/输出基本流通（不拆分组件）
-- [ ] 验证三平台（macOS/Linux/Windows）PTY 正常工作
-- [ ] 验证 resize 事件正确传递
+- [x] `cargo tauri init` 创建项目骨架
+- [x] 配置 `vite` + `TypeScript` + `tailwindcss`
+- [x] 集成 `portable-pty`，实现最简单的 PTY session 创建
+- [x] 集成 `xterm.js`，实现输入/输出基本流通（不拆分组件）
+- [ ] 验证三平台（macOS/Linux/Windows）PTY 正常工作（CI workflow 已就绪，待 GitHub Actions 执行）
+- [x] 验证 resize 事件正确传递（集成测试通过）
 
 **Week 2：多 Tab 和状态管理**
-- [ ] 实现 `SessionStore`（Zustand）
-- [ ] 实现 `TabBar` 组件（新建/切换/关闭）
-- [ ] 实现 Tab 切换时 xterm.js 实例的保活策略
-- [ ] 实现 `PtyManager` 的完整增删改查
-- [ ] 实现基础主题（深色模式）
+- [x] 实现 `SessionStore`（Zustand）
+- [x] 实现 `TabBar` 组件（新建/切换/关闭）
+- [x] 实现 Tab 切换时 xterm.js 实例的保活策略
+- [x] 实现 `PtyManager` 的完整增删改查
+- [x] 实现基础主题（深色模式）
 
 **Week 3：布局和配置**
-- [ ] 实现 `AppLayout`（侧边栏 + 内容区）
-- [ ] 实现 `SettingsModal`（字体、主题、默认 shell）
-- [ ] 实现配置持久化（TOML 文件读写）
-- [ ] 集成 `tauri-specta` 自动生成 TypeScript 类型
+- [x] 实现 `AppLayout`（侧边栏 + 内容区）
+- [x] 实现 `SettingsModal`（字体、主题、默认 shell）
+- [x] 实现配置持久化（TOML 文件读写）
+- [x] 集成 `tauri-specta` 自动生成 TypeScript 类型
 
 **Week 4：SQLite 和发布**
-- [ ] 实现 SQLite schema 和 migration 系统
-- [ ] 实现会话配置的保存和加载（SavedSession）
-- [ ] 配置 GitHub Actions 三平台构建
-- [ ] 打包 macOS DMG、Linux AppImage、Windows NSIS installer
+- [ ] 实现 SQLite schema 和 migration 系统（推迟至 Phase 2）
+- [ ] 实现会话配置的保存和加载（SavedSession）（推迟至 Phase 2）
+- [x] 配置 GitHub Actions 三平台构建（ci.yml + release.yml）
+- [x] 打包配置：macOS DMG、Linux AppImage、Windows NSIS installer
 
 ### Phase 2 — 会话管理（目标：+4 周）
 
