@@ -38,6 +38,10 @@ jobs:
           key: ${{ runner.os }}-rust-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-rust-
 
+      - name: Create dist directory (required by tauri::generate_context! macro)
+        shell: bash
+        run: mkdir -p dist
+
       - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test --all
