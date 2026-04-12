@@ -65,3 +65,23 @@ jobs:
             See the full changelog for this release.
           releaseDraft: true
           prerelease: false
+
+      # Windows: zip the standalone .exe as a portable (no-install) package.
+      # The exe relies on WebView2 which ships with all Windows 10/11 systems.
+      - name: Create Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          Compress-Archive `
+            -Path "src-tauri/target/release/taix.exe" `
+            -DestinationPath "taix-${version}-windows-x64-portable.zip"
+
+      - name: Upload Windows portable zip to release
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: true
+          files: taix-*-windows-x64-portable.zip
