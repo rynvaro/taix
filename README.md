@@ -93,9 +93,15 @@ npm run tauri build
 ```
 
 Outputs are placed in `src-tauri/target/release/bundle/`:
-- **macOS** → `.dmg`
+- **macOS** → `.dmg` + `.app.tar.gz`
 - **Linux** → `.AppImage` + `.deb`
-- **Windows** → `.exe` (NSIS installer)
+- **Windows** → `.exe` (NSIS installer) + portable `.zip`
+
+> **macOS note:** Downloaded builds are not code-signed. If macOS shows "app is damaged and can't be opened", run:
+> ```bash
+> xattr -cr /Applications/Taix.app
+> ```
+> then open again. This clears the quarantine flag set by Gatekeeper.
 
 ---
 

@@ -65,6 +65,18 @@ jobs:
           releaseName: Taix ${{ github.ref_name }}
           releaseBody: |
             See the full changelog for this release.
+
+            ---
+
+            ### ⚠️ macOS — "App is damaged" warning
+
+            Downloads are not code-signed. If macOS refuses to open the app, run the following command in Terminal and try again:
+
+            ```bash
+            xattr -cr /Applications/Taix.app
+            ```
+
+            This clears the Gatekeeper quarantine flag. It is safe to do so for releases downloaded from this page.
           releaseDraft: true
           prerelease: false
 
