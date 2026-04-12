@@ -6,9 +6,6 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
-# Tauri auto-generated (regenerated on every debug build/test)
-src/types/bindings.ts
-
 # Environment / secrets
 .env
 .env.local
