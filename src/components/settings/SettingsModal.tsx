@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ShellSettings } from "./ShellSettings";
+import { SshProfilesSettings } from "./SshProfilesSettings";
 
-type Tab = "appearance" | "shell" | "ai";
+type Tab = "appearance" | "shell" | "ssh" | "ai";
 
 const TABS: { id: Tab; label: string; disabled?: boolean }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "shell", label: "Shell" },
+  { id: "ssh", label: "SSH Profiles" },
   { id: "ai", label: "AI", disabled: true },
 ];
 
@@ -80,6 +82,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <>
                 {activeTab === "appearance" && <AppearanceSettings />}
                 {activeTab === "shell" && <ShellSettings />}
+                {activeTab === "ssh" && <SshProfilesSettings />}
               </>
             )}
           </div>

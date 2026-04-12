@@ -1,19 +1,31 @@
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod pane;
 pub mod pty;
 pub mod state;
+pub mod storage;
 
 use commands::config::{config_get, config_set};
 use commands::pty::{
     pty_close, pty_create, pty_default_shell, pty_list_active, pty_resize, pty_write,
 };
+use commands::sessions::{
+    groups_create, groups_delete, groups_list, sessions_delete, sessions_get, sessions_list,
+    sessions_reorder, sessions_save,
+};
+use commands::system::open_url;
 use state::AppState;
 use tauri_specta::{collect_commands, Builder};
 
 /// Builds the specta command registry (shared between `run()` and tests).
 fn make_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![
+    let types = specta::Types::default()
+        .register::<pane::PaneLayout>()
+        .register::<pane::SplitDirection>();
+    Builder::<tauri::Wry>::new()
+        .types(&types)
+        .commands(collect_commands![
         pty_create,
         pty_write,
         pty_resize,
@@ -22,6 +34,15 @@ fn make_builder() -> Builder<tauri::Wry> {
         pty_default_shell,
         config_get,
         config_set,
+        sessions_list,
+        sessions_get,
+        sessions_save,
+        sessions_delete,
+        sessions_reorder,
+        groups_list,
+        groups_create,
+        groups_delete,
+        open_url,
     ])
 }
 
@@ -45,7 +66,13 @@ pub fn run() {
     export_bindings();
 
     let config = config::ConfigManager::load().unwrap_or_default();
-    let app_state = AppState::new(config);
+    let config_path = config::ConfigManager::config_path();
+    let db_path = config_path
+        .parent()
+        .expect("config dir must have a parent")
+        .join("taix.db");
+    let db = storage::db::Database::open(&db_path).expect("Failed to open database");
+    let app_state = AppState::new(config, db);
 
     tauri::Builder::default()
         .manage(app_state)

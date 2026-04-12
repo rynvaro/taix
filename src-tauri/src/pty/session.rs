@@ -29,11 +29,35 @@ pub struct LocalShellConfig {
     pub cwd: Option<String>,
 }
 
+/// SSH authentication method.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SshAuth {
+    /// Password — user types it interactively in the PTY; never stored.
+    Password,
+    /// Private key file at the given path.
+    PrivateKey { path: String },
+    /// Delegate to the system SSH agent via SSH_AUTH_SOCK.
+    SshAgent,
+}
+
+/// Configuration for an SSH session.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SshConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub auth: SshAuth,
+    pub cwd: Option<String>,
+}
+
 /// Session configuration variants (local shell for now; SSH to follow in Phase 2).
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SessionConfig {
     Local(LocalShellConfig),
+    Ssh(SshConfig),
 }
 
 /// Metadata about an active PTY session returned to the frontend.
@@ -89,6 +113,29 @@ impl PtySession {
                 }
                 builder
             }
+            SessionConfig::Ssh(cfg) => {
+                let mut builder = CommandBuilder::new("ssh");
+                builder.arg("-p");
+                builder.arg(cfg.port.to_string());
+                match &cfg.auth {
+                    SshAuth::PrivateKey { path } => {
+                        builder.arg("-i");
+                        builder.arg(path);
+                    }
+                    SshAuth::SshAgent => {
+                        // SSH_AUTH_SOCK is inherited from the parent process environment
+                    }
+                    SshAuth::Password => {
+                        // User types the password interactively in the PTY
+                    }
+                }
+                builder.arg(format!("{}@{}", cfg.username, cfg.host));
+                if let Some(cwd) = &cfg.cwd {
+                    // Request a remote shell that starts in cwd
+                    builder.arg(format!("cd {} && exec $SHELL -l", cwd));
+                }
+                builder
+            }
         };
 
         // Spawn the shell process on the PTY slave.
@@ -115,13 +162,21 @@ impl PtySession {
         let app_handle_reader = app_handle.clone();
         let reader_thread = std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
+            let mut osc_parser = OscTitleParser::new();
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => break, // EOF — shell exited
                     Ok(n) => {
                         let data = buf[..n].to_vec();
-                        let event = format!("pty://output/{}", session_id_reader);
-                        let _ = app_handle_reader.emit(&event, data);
+
+                        // G1: scan for OSC title sequences (ESC ] 0/2 ; title BEL)
+                        if let Some(title) = osc_parser.feed(&data) {
+                            let title_event = format!("pty://title/{}", session_id_reader);
+                            let _ = app_handle_reader.emit(&title_event, title);
+                        }
+
+                        let output_event = format!("pty://output/{}", session_id_reader);
+                        let _ = app_handle_reader.emit(&output_event, data);
                     }
                     Err(_) => break,
                 }
@@ -180,6 +235,9 @@ impl PtySession {
                     .unwrap_or("shell")
                     .to_string()
             }
+            SessionConfig::Ssh(cfg) => {
+                format!("{}@{}", cfg.username, cfg.host)
+            }
         };
 
         SessionInfo {
@@ -197,6 +255,104 @@ unsafe impl Send for PtySession {}
 unsafe impl Sync for PtySession {}
 
 use std::io::Read;
+
+// ── G1: OSC title sequence parser ────────────────────────────────────────────
+//
+// Detects ESC ] 0 ; {title} BEL  or  ESC ] 2 ; {title} BEL
+// Works correctly across multiple read() calls.
+
+#[derive(Default)]
+enum OscState {
+    #[default]
+    Ground,
+    /// Received ESC (0x1B)
+    Esc,
+    /// Received ESC ]
+    OscStart,
+    /// Collecting the numeric parameter (should be 0 or 2)
+    OscParam {
+        param: u8,
+    },
+    /// Received ";" and the param was 0 or 2 — collecting the title bytes
+    CollectingTitle {
+        title: Vec<u8>,
+    },
+}
+
+struct OscTitleParser {
+    state: OscState,
+}
+
+impl OscTitleParser {
+    fn new() -> Self {
+        Self {
+            state: OscState::Ground,
+        }
+    }
+
+    /// Feed a chunk of bytes; returns the title string if an OSC 0/2 sequence
+    /// was completed within this chunk. Only the *last* completed title
+    /// in the chunk is returned (multiple titles per chunk are rare).
+    fn feed(&mut self, data: &[u8]) -> Option<String> {
+        let mut result: Option<String> = None;
+        for &b in data {
+            match &mut self.state {
+                OscState::Ground => {
+                    if b == 0x1B {
+                        self.state = OscState::Esc;
+                    }
+                }
+                OscState::Esc => {
+                    if b == b']' {
+                        self.state = OscState::OscStart;
+                    } else {
+                        self.state = OscState::Ground;
+                    }
+                }
+                OscState::OscStart => {
+                    if b.is_ascii_digit() {
+                        self.state = OscState::OscParam { param: b - b'0' };
+                    } else {
+                        self.state = OscState::Ground;
+                    }
+                }
+                OscState::OscParam { param } => {
+                    if b == b';' {
+                        if *param == 0 || *param == 2 {
+                            self.state = OscState::CollectingTitle { title: Vec::new() };
+                        } else {
+                            self.state = OscState::Ground;
+                        }
+                    } else if b.is_ascii_digit() {
+                        // Multi-digit param (e.g. "12;") — reset, not 0 or 2
+                        *param = b - b'0'; // keep last digit (simplification)
+                    } else {
+                        self.state = OscState::Ground;
+                    }
+                }
+                OscState::CollectingTitle { title } => {
+                    if b == 0x07 {
+                        // BEL — sequence complete
+                        if let Ok(s) = std::str::from_utf8(title) {
+                            result = Some(s.to_string());
+                        }
+                        self.state = OscState::Ground;
+                    } else if b == 0x1B {
+                        // Start of new escape — abort this sequence
+                        self.state = OscState::Esc;
+                    } else {
+                        title.push(b);
+                        // Guard against unbounded growth
+                        if title.len() > 512 {
+                            self.state = OscState::Ground;
+                        }
+                    }
+                }
+            }
+        }
+        result
+    }
+}
 
 // ── C5: PTY resize integration test ──────────────────────────────────────────
 #[cfg(all(test, unix))]

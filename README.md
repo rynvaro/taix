@@ -182,6 +182,24 @@ Releases are triggered by pushing a `v*` tag and automatically produce installer
 
 ---
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `⌘T` | New tab (opens New Session modal) |
+| `⌘W` | Close active pane / session |
+| `⌘1`–`⌘9` | Switch to Nth tab |
+| `⌘[` | Focus previous pane |
+| `⌘]` | Focus next pane |
+| `⌘D` | Split active pane horizontally |
+| `⌘⇧D` | Split active pane vertically |
+| `⌘F` | Open in-terminal search |
+| `Escape` | Close search / modal |
+
+> On Linux / Windows replace `⌘` with `Ctrl`.
+
+---
+
 ## Contributing
 
 Contributions are welcome! Please open an issue before starting large changes so we can discuss the approach.

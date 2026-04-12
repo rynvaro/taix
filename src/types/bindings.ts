@@ -23,6 +23,25 @@ export const commands = {
 	configGet: () => typedError<AppConfig, AppError>(__TAURI_INVOKE("config_get")),
 	// Persists a new configuration (replaces the current one).
 	configSet: (config: AppConfig) => typedError<null, AppError>(__TAURI_INVOKE("config_set", { config })),
+	sessionsList: () => typedError<SavedSession[], AppError>(__TAURI_INVOKE("sessions_list")),
+	sessionsGet: (id: string) => typedError<{
+	id: string,
+	name: string,
+	sessionType: string,
+	config: string,
+	groupId: string | null,
+	sortOrder: number,
+	createdAt: string,
+	updatedAt: string,
+} | null, AppError>(__TAURI_INVOKE("sessions_get", { id })),
+	sessionsSave: (session: SavedSession) => typedError<null, AppError>(__TAURI_INVOKE("sessions_save", { session })),
+	sessionsDelete: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("sessions_delete", { id })),
+	sessionsReorder: (ids: string[]) => typedError<null, AppError>(__TAURI_INVOKE("sessions_reorder", { ids })),
+	groupsList: () => typedError<SessionGroup[], AppError>(__TAURI_INVOKE("groups_list")),
+	groupsCreate: (id: string, name: string, color: string | null) => typedError<null, AppError>(__TAURI_INVOKE("groups_create", { id, name, color })),
+	groupsDelete: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("groups_delete", { id })),
+	// Opens a URL in the system default browser.
+	openUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_url", { url })),
 };
 
 /* Types */
@@ -78,8 +97,31 @@ export type LocalShellConfig = {
 	cwd: string | null,
 };
 
+// Recursive pane layout tree.
+export type PaneLayout = { type: "leaf"; sessionId: string } | { type: "split"; direction: SplitDirection; 
+// Position of the divider: 0.0 = fully left/top, 1.0 = fully right/bottom.
+ratio: number; first: PaneLayout; second: PaneLayout };
+
+export type SavedSession = {
+	id: string,
+	name: string,
+	sessionType: string,
+	config: string,
+	groupId: string | null,
+	sortOrder: number,
+	createdAt: string,
+	updatedAt: string,
+};
+
 // Session configuration variants (local shell for now; SSH to follow in Phase 2).
-export type SessionConfig = { type: "local" } & (LocalShellConfig);
+export type SessionConfig = { type: "local" } & (LocalShellConfig) | { type: "ssh" } & (SshConfig);
+
+export type SessionGroup = {
+	id: string,
+	name: string,
+	color: string | null,
+	sortOrder: number,
+};
 
 // Metadata about an active PTY session returned to the frontend.
 export type SessionInfo = {
@@ -98,6 +140,27 @@ export type ShellConfig = {
 	args: string[],
 	// Extra environment variables to inject into new sessions.
 	env: { [key in string]: string },
+};
+
+// Direction of a pane split.
+export type SplitDirection = "horizontal" | "vertical";
+
+// SSH authentication method.
+export type SshAuth = 
+// Password — user types it interactively in the PTY; never stored.
+{ type: "password" } | 
+// Private key file at the given path.
+{ type: "privateKey"; path: string } | 
+// Delegate to the system SSH agent via SSH_AUTH_SOCK.
+{ type: "sshAgent" };
+
+// Configuration for an SSH session.
+export type SshConfig = {
+	host: string,
+	port: number,
+	username: string,
+	auth: SshAuth,
+	cwd: string | null,
 };
 
 export type Theme = "dark" | "light" | "system";

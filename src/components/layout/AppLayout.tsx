@@ -1,4 +1,8 @@
-import { useUiStore } from "../../stores/uiStore";
+import { useEffect } from "react";
+import { useUiStore, collectLeafIds } from "../../stores/uiStore";
+import { useSessionStore } from "../../stores/sessionStore";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { ptyDefaultShell } from "../../services/pty";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { StatusBar } from "./StatusBar";
 import { SessionList } from "../session/SessionList";
@@ -6,6 +10,94 @@ import { SessionList } from "../session/SessionList";
 export function AppLayout() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const { layout, activePaneId, splitPane, closePane, setActivePaneId } =
+    useUiStore();
+  const { createSession, closeSession } = useSessionStore();
+  const shellConfig = useSettingsStore((s) => s.config?.shell);
+
+  useEffect(() => {
+    const handler = async (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      // Cmd/Ctrl+D — horizontal split
+      if (e.key === "d" && !e.shiftKey) {
+        e.preventDefault();
+        if (!activePaneId) return;
+        const shell =
+          shellConfig?.defaultShell ?? (await ptyDefaultShell());
+        const newId = await createSession({
+          type: "local",
+          shell,
+          args: shellConfig?.args ?? [],
+          env: shellConfig?.env ?? {},
+          cwd: null,
+        });
+        splitPane(activePaneId, "horizontal", newId);
+        return;
+      }
+
+      // Cmd/Ctrl+Shift+D — vertical split
+      if (e.key === "D" && e.shiftKey) {
+        e.preventDefault();
+        if (!activePaneId) return;
+        const shell =
+          shellConfig?.defaultShell ?? (await ptyDefaultShell());
+        const newId = await createSession({
+          type: "local",
+          shell,
+          args: shellConfig?.args ?? [],
+          env: shellConfig?.env ?? {},
+          cwd: null,
+        });
+        splitPane(activePaneId, "vertical", newId);
+        return;
+      }
+
+      // Cmd/Ctrl+W — close current pane
+      if (e.key === "w") {
+        e.preventDefault();
+        if (!activePaneId) return;
+        closePane(activePaneId);
+        await closeSession(activePaneId);
+        return;
+      }
+
+      // Cmd/Ctrl+[ — cycle focus backward
+      if (e.key === "[") {
+        e.preventDefault();
+        if (!layout || !activePaneId) return;
+        const ids = collectLeafIds(layout);
+        const idx = ids.indexOf(activePaneId);
+        if (idx > 0) setActivePaneId(ids[idx - 1]);
+        else setActivePaneId(ids[ids.length - 1]);
+        return;
+      }
+
+      // Cmd/Ctrl+] — cycle focus forward
+      if (e.key === "]") {
+        e.preventDefault();
+        if (!layout || !activePaneId) return;
+        const ids = collectLeafIds(layout);
+        const idx = ids.indexOf(activePaneId);
+        if (idx < ids.length - 1) setActivePaneId(ids[idx + 1]);
+        else setActivePaneId(ids[0]);
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [
+    activePaneId,
+    layout,
+    shellConfig,
+    createSession,
+    splitPane,
+    closePane,
+    closeSession,
+    setActivePaneId,
+  ]);
 
   return (
     <div className="flex flex-row w-screen h-screen overflow-hidden bg-neutral-950 text-neutral-100">

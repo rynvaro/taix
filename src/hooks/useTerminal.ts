@@ -1,14 +1,18 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { listen } from "@tauri-apps/api/event";
 import { ptyWrite, onPtyOutput, onPtyExit } from "../services/pty";
+import { openUrl } from "../services/system";
 import { useSessionStore } from "../stores/sessionStore";
 import { useSettingsStore } from "../stores/settingsStore";
 
 export interface UseTerminalResult {
   terminalRef: React.RefObject<Terminal | null>;
   fitAddonRef: React.RefObject<FitAddon | null>;
+  searchAddonRef: React.RefObject<SearchAddon | null>;
 }
 
 export function useTerminal(
@@ -17,8 +21,10 @@ export function useTerminal(
 ): UseTerminalResult {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
   const appearance = useSettingsStore((s) => s.config?.appearance);
   const markExited = useSessionStore((s) => s.markSessionExited);
+  const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -40,9 +46,20 @@ export function useTerminal(
     });
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    const searchAddon = new SearchAddon();
+    const webLinksAddon = new WebLinksAddon(
+      (event, url) => {
+        // Open URL on Cmd+Click (macOS) or Ctrl+Click (Windows/Linux)
+        if (event.metaKey || event.ctrlKey) {
+          openUrl(url).catch((e) =>
+            console.error("[useTerminal] openUrl error:", e)
+          );
+        }
+      }
+    );
 
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(searchAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.open(el);
 
@@ -51,6 +68,7 @@ export function useTerminal(
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    searchAddonRef.current = searchAddon;
 
     // Forward keystrokes to PTY
     const dataDisposable = terminal.onData(async (data) => {
@@ -64,6 +82,7 @@ export function useTerminal(
     // Stream PTY output into terminal
     let outputUnlisten: (() => void) | null = null;
     let exitUnlisten: (() => void) | null = null;
+    let titleUnlisten: (() => void) | null = null;
 
     onPtyOutput(sessionId, (data) => terminal.write(data)).then((fn) => {
       outputUnlisten = fn;
@@ -76,15 +95,25 @@ export function useTerminal(
       exitUnlisten = fn;
     });
 
+    // G2: Subscribe to OSC title events emitted by the Rust reader thread.
+    listen<string>(`pty://title/${sessionId}`, (event) => {
+      updateSessionTitle(sessionId, event.payload);
+    }).then((fn) => {
+      titleUnlisten = fn;
+    });
+
     return () => {
       dataDisposable.dispose();
       outputUnlisten?.();
       exitUnlisten?.();
+      titleUnlisten?.();
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
     };
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { terminalRef, fitAddonRef };
+  return { terminalRef, fitAddonRef, searchAddonRef };
 }
+

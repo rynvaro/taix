@@ -34,6 +34,12 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-log = "2"
 
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# URL opener (G3)
+open = "5"
+
 # Type generation (tauri-specta generates TypeScript bindings from Rust types)
 specta = { version = "=2.0.0-rc.24", features = ["derive"] }
 specta-typescript = "=0.0.11"
