@@ -4,6 +4,11 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useUiStore } from "./stores/uiStore";
+import { useSessionStore } from "./stores/sessionStore";
+import { ptyDefaultShell } from "./services/pty";
+
+// Guard against React StrictMode double-invoking the startup effect.
+let _appStarted = false;
 
 function App() {
   const loadSettings = useSettingsStore((s) => s.loadSettings);
@@ -12,10 +17,34 @@ function App() {
   const toggleSettings = useUiStore((s) => s.toggleSettings);
   const closeSettings = useUiStore((s) => s.closeSettings);
 
-  // Load configuration from the backend on startup.
+  // On startup: load settings + saved sessions/groups, then auto-open a shell.
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    if (_appStarted) return;
+    _appStarted = true;
+
+    const { loadSavedSessions, loadGroups, sessions, createSession } =
+      useSessionStore.getState();
+
+    Promise.all([
+      loadSettings(),
+      loadSavedSessions(),
+      loadGroups(),
+    ]).then(async () => {
+      if (useSessionStore.getState().sessions.length === 0) {
+        const shellConfig = useSettingsStore.getState().config?.shell;
+        const shell = shellConfig?.defaultShell ?? (await ptyDefaultShell());
+        await createSession({
+          type: "local",
+          shell,
+          args: shellConfig?.args ?? [],
+          env: shellConfig?.env ?? {},
+          cwd: null,
+        });
+      }
+    }).catch((e) => console.error("[App] startup error:", e));
+
+    void sessions; // suppress lint
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply Tailwind dark/light class to <html> for G4 theme switching.
   useEffect(() => {

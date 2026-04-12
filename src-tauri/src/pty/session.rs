@@ -115,6 +115,10 @@ impl PtySession {
             }
             SessionConfig::Ssh(cfg) => {
                 let mut builder = CommandBuilder::new("ssh");
+                // Force TTY allocation on the remote side so the interactive
+                // shell works correctly (especially when passing a cwd command).
+                builder.arg("-t");
+                builder.arg("-t"); // double -tt overrides "no tty" heuristic
                 builder.arg("-p");
                 builder.arg(cfg.port.to_string());
                 match &cfg.auth {
@@ -131,8 +135,8 @@ impl PtySession {
                 }
                 builder.arg(format!("{}@{}", cfg.username, cfg.host));
                 if let Some(cwd) = &cfg.cwd {
-                    // Request a remote shell that starts in cwd
-                    builder.arg(format!("cd {} && exec $SHELL -l", cwd));
+                    // Start the remote shell in the specified directory.
+                    builder.arg(format!("cd {:?} && exec $SHELL -l", cwd));
                 }
                 builder
             }
@@ -228,13 +232,11 @@ impl PtySession {
     /// Returns lightweight metadata for the frontend.
     pub fn info(&self) -> SessionInfo {
         let title = match &self.config {
-            SessionConfig::Local(cfg) => {
-                PathBuf::from(&cfg.shell)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("shell")
-                    .to_string()
-            }
+            SessionConfig::Local(cfg) => PathBuf::from(&cfg.shell)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("shell")
+                .to_string(),
             SessionConfig::Ssh(cfg) => {
                 format!("{}@{}", cfg.username, cfg.host)
             }
@@ -270,13 +272,9 @@ enum OscState {
     /// Received ESC ]
     OscStart,
     /// Collecting the numeric parameter (should be 0 or 2)
-    OscParam {
-        param: u8,
-    },
+    OscParam { param: u8 },
     /// Received ";" and the param was 0 or 2 — collecting the title bytes
-    CollectingTitle {
-        title: Vec<u8>,
-    },
+    CollectingTitle { title: Vec<u8> },
 }
 
 struct OscTitleParser {

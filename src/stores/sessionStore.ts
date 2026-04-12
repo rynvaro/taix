@@ -67,9 +67,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   createSession: async (config) => {
     const id = await ptyCreate(config);
+    const title =
+      config.type === "ssh"
+        ? `${config.username}@${config.host}`
+        : (config.shell?.split("/").pop() ?? "shell");
     const info: Session = {
       id,
-      title: (config as { shell?: string }).shell?.split("/").pop() ?? "shell",
+      title,
       startedAt: new Date().toISOString(),
       isActive: true,
     };

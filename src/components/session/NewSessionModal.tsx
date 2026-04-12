@@ -10,11 +10,35 @@ interface Props {
   onClose: () => void;
 }
 
+// ── Shared input / label styles ───────────────────────────────────────────────
+
+const inputCls =
+  "w-full px-3 py-2 text-sm bg-neutral-900 border border-neutral-600 rounded-md " +
+  "text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-1 " +
+  "focus:ring-blue-500 focus:border-blue-500 transition-colors";
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-neutral-400 uppercase tracking-wide">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 // ── Local shell form ──────────────────────────────────────────────────────────
 
 interface LocalFormState {
   shell: string;
-  args: string; // space-separated
+  args: string;
   cwd: string;
 }
 
@@ -26,43 +50,42 @@ function LocalForm({
   onChange: (v: LocalFormState) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Shell</span>
+    <div className="flex flex-col gap-4">
+      <Field label="Shell">
         <input
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.shell}
           onChange={(e) => onChange({ ...value, shell: e.target.value })}
           placeholder="/bin/zsh"
+          autoFocus
         />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Arguments (space-separated)</span>
+      </Field>
+      <Field label="Arguments (optional)">
         <input
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.args}
           onChange={(e) => onChange({ ...value, args: e.target.value })}
           placeholder="--login"
         />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Initial directory</span>
+      </Field>
+      <Field label="Initial directory (optional)">
         <input
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.cwd}
           onChange={(e) => onChange({ ...value, cwd: e.target.value })}
           placeholder="~ (default)"
         />
-      </label>
+      </Field>
     </div>
   );
 }
 
-// ── SSH form ────────────────────────────────────────────────────────────────
+// ── SSH form ──────────────────────────────────────────────────────────────────
 
 type SshAuthType = "password" | "privateKey" | "sshAgent";
 
 interface SshFormState {
+  name: string;
   host: string;
   port: string;
   username: string;
@@ -78,91 +101,92 @@ function SshForm({
   value: SshFormState;
   onChange: (v: SshFormState) => void;
 }) {
+  const f = (k: keyof SshFormState, v: string) => onChange({ ...value, [k]: v });
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2">
-        <label className="flex flex-col gap-1 flex-1">
-          <span className="text-xs text-neutral-400">Host</span>
+    <div className="flex flex-col gap-4">
+      <Field label="Profile name">
+        <input
+          className={inputCls}
+          value={value.name}
+          onChange={(e) => f("name", e.target.value)}
+          placeholder="My server"
+          autoFocus
+        />
+      </Field>
+
+      <div className="flex gap-3">
+        <div className="flex-1 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Host</span>
           <input
-            className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+            className={inputCls}
             value={value.host}
-            onChange={(e) => onChange({ ...value, host: e.target.value })}
+            onChange={(e) => f("host", e.target.value)}
             placeholder="example.com"
           />
-        </label>
-        <label className="flex flex-col gap-1 w-20">
-          <span className="text-xs text-neutral-400">Port</span>
+        </div>
+        <div className="w-20 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Port</span>
           <input
-            className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+            className={inputCls}
             value={value.port}
-            onChange={(e) => onChange({ ...value, port: e.target.value })}
+            onChange={(e) => f("port", e.target.value)}
             placeholder="22"
           />
-        </label>
+        </div>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Username</span>
+
+      <Field label="Username">
         <input
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.username}
-          onChange={(e) => onChange({ ...value, username: e.target.value })}
+          onChange={(e) => f("username", e.target.value)}
           placeholder="root"
         />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Authentication</span>
+      </Field>
+
+      <Field label="Authentication">
         <select
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.authType}
-          onChange={(e) =>
-            onChange({ ...value, authType: e.target.value as SshAuthType })
-          }
+          onChange={(e) => f("authType", e.target.value)}
         >
           <option value="password">Password (interactive)</option>
-          <option value="privateKey">Private key</option>
+          <option value="privateKey">Private key file</option>
           <option value="sshAgent">SSH agent</option>
         </select>
-      </label>
+      </Field>
+
       {value.authType === "privateKey" && (
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-neutral-400">Key file path</span>
+        <Field label="Key file path">
           <input
-            className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+            className={inputCls}
             value={value.keyPath}
-            onChange={(e) => onChange({ ...value, keyPath: e.target.value })}
+            onChange={(e) => f("keyPath", e.target.value)}
             placeholder="~/.ssh/id_rsa"
           />
-        </label>
+        </Field>
       )}
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-neutral-400">Remote initial directory (optional)</span>
+
+      <Field label="Remote initial directory (optional)">
         <input
-          className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
+          className={inputCls}
           value={value.cwd}
-          onChange={(e) => onChange({ ...value, cwd: e.target.value })}
+          onChange={(e) => f("cwd", e.target.value)}
           placeholder="/home/user"
         />
-      </label>
+      </Field>
     </div>
   );
 }
 
-// ── Main modal ───────────────────────────────────────────────────────────────
+// ── Main modal ────────────────────────────────────────────────────────────────
 
 export function NewSessionModal({ onClose }: Props) {
   const createSession = useSessionStore((s) => s.createSession);
   const saveCurrentSession = useSessionStore((s) => s.saveCurrentSession);
-  const savedSessions = useSessionStore((s) => s.savedSessions);
   const shellConfig = useSettingsStore((s) => s.config?.shell);
 
-  // H3: Top 5 recent sessions sorted by updatedAt descending
-  const recentSessions = [...savedSessions]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 5);
-
   const [activeTab, setActiveTab] = useState<TabId>("local");
-  const [saveAs, setSaveAs] = useState(false);
-  const [saveName, setSaveName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -173,6 +197,7 @@ export function NewSessionModal({ onClose }: Props) {
   });
 
   const [sshForm, setSshForm] = useState<SshFormState>({
+    name: "",
     host: "",
     port: "22",
     username: "",
@@ -180,22 +205,18 @@ export function NewSessionModal({ onClose }: Props) {
     keyPath: "",
     cwd: "",
   });
+  // SSH: save by default
+  const [sshSave, setSshSave] = useState(true);
 
-  // Pre-fill shell from backend if not already set
   useEffect(() => {
     if (!localForm.shell) {
-      ptyDefaultShell().then((s) =>
-        setLocalForm((f) => ({ ...f, shell: s }))
-      );
+      ptyDefaultShell().then((s) => setLocalForm((f) => ({ ...f, shell: s })));
     }
-  }, [localForm.shell]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close on Escape
   const overlayRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -210,178 +231,168 @@ export function NewSessionModal({ onClose }: Props) {
         cwd: localForm.cwd.trim() || null,
       };
     }
-    // SSH
     let auth: SshAuth;
-    if (sshForm.authType === "privateKey") {
-      auth = { type: "privateKey", path: sshForm.keyPath };
-    } else if (sshForm.authType === "sshAgent") {
-      auth = { type: "sshAgent" };
-    } else {
-      auth = { type: "password" };
-    }
-    const sshConfig: SshConfig = {
+    if (sshForm.authType === "privateKey") auth = { type: "privateKey", path: sshForm.keyPath };
+    else if (sshForm.authType === "sshAgent") auth = { type: "sshAgent" };
+    else auth = { type: "password" };
+    const ssh: SshConfig = {
       host: sshForm.host,
       port: parseInt(sshForm.port, 10) || 22,
       username: sshForm.username,
       auth,
       cwd: sshForm.cwd.trim() || null,
     };
-    return { type: "ssh", ...sshConfig };
+    return { type: "ssh", ...ssh };
   };
 
+  const canConnect =
+    activeTab === "local"
+      ? !!localForm.shell.trim()
+      : !!sshForm.host.trim() && !!sshForm.username.trim();
+
   const handleConnect = async () => {
+    if (!canConnect) return;
     setError(null);
     setLoading(true);
     try {
       const config = buildConfig();
       const id = await createSession(config);
-      if (saveAs && saveName.trim()) {
-        await saveCurrentSession(id, saveName.trim(), config);
+      // SSH: save profile if opted in
+      if (activeTab === "ssh" && sshSave) {
+        const name = sshForm.name.trim() || `${sshForm.username}@${sshForm.host}`;
+        await saveCurrentSession(id, name, config);
       }
       onClose();
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message ?? "Connection failed.");
     } finally {
       setLoading(false);
     }
   };
 
-  // H3: Quick-connect from a saved session
-  const handleRecentConnect = async (config: SessionConfig) => {
-    setError(null);
-    setLoading(true);
-    try {
-      await createSession(config);
-      onClose();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const tabs: { id: TabId; label: string; icon: string }[] = [
+    { id: "local", label: "Local Shell", icon: "⌨" },
+    { id: "ssh",   label: "SSH",         icon: "⛓" },
+  ];
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className="bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl w-[460px] max-w-full animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-neutral-850 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl w-[480px] max-w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
+
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-700">
-          <h2 className="text-sm font-semibold text-neutral-100">New Session</h2>
+        <div className="flex items-center gap-3 px-7 pt-5 pb-4">
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-white">New Session</h2>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              {activeTab === "local" ? "Open a local shell in a new tab" : "Connect to a remote server via SSH"}
+            </p>
+          </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-100 text-lg leading-none"
+            className="flex items-center justify-center w-7 h-7 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-700 transition-colors"
             aria-label="Close"
           >
-            ×
+            ✕
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-neutral-700">
-          {(["local", "ssh"] as TabId[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 text-sm capitalize ${
-                activeTab === tab
-                  ? "text-blue-400 border-b-2 border-blue-400"
-                  : "text-neutral-400 hover:text-neutral-200"
-              }`}
-            >
-              {tab === "local" ? "Local Shell" : "SSH"}
-            </button>
-          ))}
+        {/* Tab switcher */}
+        <div className="px-7 mb-4">
+          <div className="flex gap-1 p-1 bg-neutral-900 rounded-lg">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={[
+                  "flex items-center gap-2 flex-1 justify-center py-1.5 px-3 rounded-md text-sm font-medium transition-all",
+                  activeTab === tab.id
+                    ? "bg-neutral-700 text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200",
+                ].join(" ")}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Form */}
-        <div className="px-5 py-4">
+        {/* Form body */}
+        <div className="flex-1 overflow-y-auto px-7 pb-4 pt-1">
           {activeTab === "local" ? (
             <LocalForm value={localForm} onChange={setLocalForm} />
           ) : (
-            <SshForm value={sshForm} onChange={setSshForm} />
+            <>
+              <SshForm value={sshForm} onChange={setSshForm} />
+              {/* Save toggle for SSH */}
+              <label className="flex items-center gap-2.5 mt-5 cursor-pointer select-none">
+                <div
+                  onClick={() => setSshSave((v) => !v)}
+                  className={[
+                    "relative w-8 h-4.5 rounded-full transition-colors cursor-pointer",
+                    sshSave ? "bg-blue-600" : "bg-neutral-600",
+                  ].join(" ")}
+                  style={{ width: 32, height: 18 }}
+                >
+                  <div
+                    className={[
+                      "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform",
+                      sshSave ? "translate-x-[14px]" : "translate-x-0.5",
+                    ].join(" ")}
+                  />
+                </div>
+                <span className="text-sm text-neutral-300">
+                  Save this connection for future use
+                </span>
+              </label>
+            </>
           )}
 
-          {/* Save shortcut */}
-          <div className="mt-4 pt-3 border-t border-neutral-700 flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={saveAs}
-                onChange={(e) => setSaveAs(e.target.checked)}
-                className="accent-blue-500"
-              />
-              Save as shortcut
-            </label>
-            {saveAs && (
-              <input
-                className="px-2 py-1.5 text-sm bg-neutral-700 border border-neutral-600 rounded text-neutral-100 focus:outline-none focus:border-blue-500"
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                placeholder="Name this session"
-                autoFocus
-              />
-            )}
-          </div>
-
           {error && (
-            <p className="mt-3 text-xs text-red-400">{error}</p>
+            <div className="mt-4 flex items-start gap-2 px-3 py-2.5 bg-red-950/60 border border-red-800 rounded-lg">
+              <span className="text-red-400 text-xs mt-0.5">✕</span>
+              <p className="text-xs text-red-300">{error}</p>
+            </div>
           )}
         </div>
 
-        {/* H3: Recent sessions */}
-        {recentSessions.length > 0 && (
-          <div className="px-5 pb-2 border-t border-neutral-700">
-            <p className="text-xs text-neutral-500 mt-3 mb-2">Recent</p>
-            <div className="flex flex-col gap-1">
-              {recentSessions.map((ss) => {
-                let config: SessionConfig | null = null;
-                try { config = JSON.parse(ss.config) as SessionConfig; } catch { /* ignore */ }
-                if (!config) return null;
-                const label =
-                  config.type === "ssh"
-                    ? `${config.username}@${config.host}`
-                    : config.shell;
-                return (
-                  <button
-                    key={ss.id}
-                    disabled={loading}
-                    onClick={() => handleRecentConnect(config!)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded hover:bg-neutral-700 text-neutral-200 disabled:opacity-50"
-                  >
-                    <span className="text-neutral-500 text-xs">
-                      {config.type === "ssh" ? "🔗" : "⊞"}
-                    </span>
-                    <span className="flex-1 truncate">{ss.name || label}</span>
-                    <span className="text-xs text-neutral-500 shrink-0">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-neutral-700">
+        <div className="flex items-center justify-end gap-3 px-7 py-4 border-t border-neutral-700 mt-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-neutral-300 hover:text-neutral-100 rounded"
+            className="px-4 py-2 text-sm text-neutral-400 hover:text-neutral-100 rounded-lg hover:bg-neutral-700 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleConnect}
-            disabled={loading}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded"
+            disabled={loading || !canConnect}
+            className={[
+              "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
+              canConnect && !loading
+                ? "bg-blue-600 hover:bg-blue-500 text-white shadow-sm"
+                : "bg-neutral-700 text-neutral-500 cursor-not-allowed",
+            ].join(" ")}
           >
-            {loading ? "Connecting…" : "Connect"}
+            {loading ? (
+              <>
+                <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Connecting…
+              </>
+            ) : (
+              <>
+                <span>{activeTab === "ssh" ? "⛓" : "⌨"}</span>
+                Connect
+              </>
+            )}
           </button>
         </div>
       </div>
     </div>
   );
 }
+

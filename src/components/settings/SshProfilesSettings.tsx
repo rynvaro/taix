@@ -169,27 +169,35 @@ export function SshProfilesSettings() {
   const [editing, setEditing] = useState<string | null>(null); // id or "new"
   const [form, setForm] = useState<SshFormState>(empty);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const startNew = () => {
     setForm(empty);
+    setSaveError(null);
     setEditing("new");
   };
 
   const startEdit = (s: SavedSession) => {
     setForm(sshFormFromSaved(s));
+    setSaveError(null);
     setEditing(s.id);
   };
 
-  const cancel = () => setEditing(null);
+  const cancel = () => { setEditing(null); setSaveError(null); };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.host.trim()) return;
+    if (!form.name.trim()) { setSaveError("Profile name is required."); return; }
+    if (!form.host.trim()) { setSaveError("Host is required."); return; }
+    if (!form.username.trim()) { setSaveError("Username is required."); return; }
+    setSaveError(null);
     setSaving(true);
     try {
       const config = buildSshConfig(form);
       const id = editing === "new" ? crypto.randomUUID() : (editing as string);
       await saveCurrentSession(id, form.name.trim(), config);
       setEditing(null);
+    } catch (e) {
+      setSaveError((e as Error).message ?? "Failed to save profile.");
     } finally {
       setSaving(false);
     }
@@ -233,6 +241,9 @@ export function SshProfilesSettings() {
                 >
                   Cancel
                 </button>
+                {saveError && (
+                  <p className="text-xs text-red-400 mt-1">{saveError}</p>
+                )}
                 <button
                   onClick={handleSave}
                   disabled={saving}
@@ -282,6 +293,9 @@ export function SshProfilesSettings() {
         {editing === "new" && (
           <div className="border border-neutral-700 rounded p-4 flex flex-col gap-3">
             <SshForm value={form} onChange={setForm} />
+            {saveError && (
+              <p className="text-xs text-red-400">{saveError}</p>
+            )}
             <div className="flex gap-2 justify-end">
               <button
                 onClick={cancel}

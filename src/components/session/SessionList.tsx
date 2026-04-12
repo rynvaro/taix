@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useSessionStore, SavedSession, SessionGroup } from "../../stores/sessionStore";
-import { useSettingsStore } from "../../stores/settingsStore";
-import { ptyDefaultShell } from "../../services/pty";
 
 // ── Single saved-session row ─────────────────────────────────────────────────
 
@@ -32,9 +30,9 @@ function SavedSessionItem({ session, onOpen, onDelete }: SessionItemProps) {
   return (
     <div className="relative flex items-center gap-1 group">
       <button
-        onClick={() => onOpen(session)}
+        onDoubleClick={() => onOpen(session)}
         className="flex items-center gap-2 flex-1 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 rounded transition-colors text-left truncate"
-        title={session.name}
+        title={session.name + ' (double-click to open)'}
       >
         <span className="shrink-0">{icon}</span>
         <span className="truncate">{session.name}</span>
@@ -114,37 +112,23 @@ function GroupSection({ group, sessions, onOpen, onDelete }: GroupSectionProps) 
 
 export function SessionList() {
   const createSession = useSessionStore((s) => s.createSession);
+  const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const savedSessions = useSessionStore((s) => s.savedSessions);
   const groups = useSessionStore((s) => s.groups);
   const loadSavedSessions = useSessionStore((s) => s.loadSavedSessions);
   const loadGroups = useSessionStore((s) => s.loadGroups);
   const deleteSavedSession = useSessionStore((s) => s.deleteSavedSession);
-  const shellConfig = useSettingsStore((s) => s.config?.shell);
 
   useEffect(() => {
     loadSavedSessions().catch(console.error);
     loadGroups().catch(console.error);
   }, [loadSavedSessions, loadGroups]);
 
-  const openLocalShell = async () => {
-    try {
-      const shell = shellConfig?.defaultShell ?? (await ptyDefaultShell());
-      await createSession({
-        type: "local",
-        shell,
-        args: shellConfig?.args ?? [],
-        env: shellConfig?.env ?? {},
-        cwd: null,
-      });
-    } catch (e) {
-      console.error("[SessionList] failed to open shell:", e);
-    }
-  };
-
   const openSaved = async (session: SavedSession) => {
     try {
       const config = JSON.parse(session.config);
-      await createSession(config);
+      const id = await createSession(config);
+      setActiveSession(id);
     } catch (e) {
       console.error("[SessionList] failed to restore session:", e);
     }
@@ -160,38 +144,39 @@ export function SessionList() {
     groupMap.get(key)!.push(s);
   }
 
+  if (savedSessions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
+        <div className="text-2xl mb-3 opacity-30">⛓</div>
+        <p className="text-xs text-neutral-500 leading-relaxed">
+          No saved sessions yet.<br />
+          Click <span className="text-neutral-400 font-medium">+</span> above to add one.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1 p-2 overflow-y-auto">
-      {/* New local shell button */}
-      <button
-        onClick={openLocalShell}
-        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 rounded transition-colors text-left font-medium"
-      >
-        <span>＋</span>
-        <span>New Local Shell</span>
-      </button>
-
-      {savedSessions.length > 0 && (
-        <div className="mt-1 border-t border-neutral-700 pt-1">
-          {/* Grouped sections */}
-          {groups.map((g) => (
-            <GroupSection
-              key={g.id}
-              group={g}
-              sessions={groupMap.get(g.id) ?? []}
-              onOpen={openSaved}
-              onDelete={deleteSavedSession}
-            />
-          ))}
-          {/* Ungrouped */}
-          <GroupSection
-            group={null}
-            sessions={groupMap.get(null) ?? []}
-            onOpen={openSaved}
-            onDelete={deleteSavedSession}
-          />
-        </div>
-      )}
+      {/* Grouped sections */}
+      {groups.map((g) => (
+        <GroupSection
+          key={g.id}
+          group={g}
+          sessions={groupMap.get(g.id) ?? []}
+          onOpen={openSaved}
+          onDelete={deleteSavedSession}
+        />
+      ))}
+      {/* Ungrouped */}
+      {(groupMap.get(null) ?? []).map((s) => (
+        <SavedSessionItem
+          key={s.id}
+          session={s}
+          onOpen={openSaved}
+          onDelete={deleteSavedSession}
+        />
+      ))}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useUiStore, collectLeafIds } from "../../stores/uiStore";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -6,6 +6,7 @@ import { ptyDefaultShell } from "../../services/pty";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { StatusBar } from "./StatusBar";
 import { SessionList } from "../session/SessionList";
+import { NewSessionModal } from "../session/NewSessionModal";
 
 export function AppLayout() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
@@ -14,6 +15,7 @@ export function AppLayout() {
     useUiStore();
   const { createSession, closeSession } = useSessionStore();
   const shellConfig = useSettingsStore((s) => s.config?.shell);
+  const [showNewSession, setShowNewSession] = useState(false);
 
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
@@ -109,18 +111,30 @@ export function AppLayout() {
       >
         <div className="flex items-center justify-between px-3 h-9 border-b border-neutral-700">
           <span className="text-sm font-semibold text-neutral-200">Taix</span>
-          <button
-            onClick={toggleSidebar}
-            aria-label="Close sidebar"
-            className="text-neutral-400 hover:text-white"
-          >
-            ←
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowNewSession(true)}
+              aria-label="New session"
+              className="flex items-center justify-center w-6 h-6 rounded text-neutral-400 hover:text-white hover:bg-neutral-700"
+              title="New session (SSH or local)"
+            >
+              +
+            </button>
+            <button
+              onClick={toggleSidebar}
+              aria-label="Close sidebar"
+              className="text-neutral-400 hover:text-white"
+            >
+              ←
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           <SessionList />
         </div>
       </aside>
+
+      {showNewSession && <NewSessionModal onClose={() => setShowNewSession(false)} />}
 
       {/* Main area */}
       <main className="flex flex-col flex-1 min-w-0">

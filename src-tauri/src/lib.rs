@@ -26,24 +26,24 @@ fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .types(&types)
         .commands(collect_commands![
-        pty_create,
-        pty_write,
-        pty_resize,
-        pty_close,
-        pty_list_active,
-        pty_default_shell,
-        config_get,
-        config_set,
-        sessions_list,
-        sessions_get,
-        sessions_save,
-        sessions_delete,
-        sessions_reorder,
-        groups_list,
-        groups_create,
-        groups_delete,
-        open_url,
-    ])
+            pty_create,
+            pty_write,
+            pty_resize,
+            pty_close,
+            pty_list_active,
+            pty_default_shell,
+            config_get,
+            config_set,
+            sessions_list,
+            sessions_get,
+            sessions_save,
+            sessions_delete,
+            sessions_reorder,
+            groups_list,
+            groups_create,
+            groups_delete,
+            open_url,
+        ])
 }
 
 /// Exports TypeScript bindings to `src/types/bindings.ts`.

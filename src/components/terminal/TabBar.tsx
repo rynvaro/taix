@@ -18,14 +18,12 @@ export function TabBar() {
   const createSession = useSessionStore((s) => s.createSession);
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const reorderTabs = useSessionStore((s) => s.reorderTabs);
-  const { layout, activePaneId, splitPane, closePane } = useUiStore();
+  const { activePaneId, splitPane, closePane } = useUiStore();
   const shellConfig = useSettingsStore((s) => s.config?.shell);
 
   const [showModal, setShowModal] = useState(false);
-  const [showSplitMenu, setShowSplitMenu] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const ctxMenuRef = useRef<HTMLDivElement>(null);
 
   // H4: Cmd+T = new tab, Cmd+1-9 = switch to Nth tab
@@ -51,18 +49,6 @@ export function TabBar() {
     return () => window.removeEventListener("keydown", handler);
   }, [sessions, setActiveSession]);
 
-  // Close split menu on outside click
-  useEffect(() => {
-    if (!showSplitMenu) return;
-    const listener = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowSplitMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", listener);
-    return () => document.removeEventListener("mousedown", listener);
-  }, [showSplitMenu]);
-
   // Close context menu on outside click / Escape
   useEffect(() => {
     if (!contextMenu) return;
@@ -83,7 +69,6 @@ export function TabBar() {
   }, [contextMenu]);
 
   const handleSplit = async (direction: "horizontal" | "vertical", sessionId?: string) => {
-    setShowSplitMenu(false);
     setContextMenu(null);
     const targetId = sessionId ?? activePaneId;
     if (!targetId) return;
@@ -150,23 +135,23 @@ export function TabBar() {
             onContextMenu={(e) => handleContextMenu(e, session.id)}
             onClick={() => setActiveSession(session.id)}
             className={[
-              "flex items-center gap-1.5 h-full px-3 text-sm whitespace-nowrap border-r border-neutral-700",
-              "transition-colors focus:outline-none",
+              "flex items-center gap-1.5 h-full px-3 text-sm border-r border-neutral-700",
+              "w-36 shrink-0 transition-colors focus:outline-none",
               isActive
-                ? "bg-neutral-800 text-white"
+                ? "bg-neutral-800 text-white border-b-2 border-b-blue-400"
                 : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200",
-              dragOver === session.id ? "border-l-2 border-l-blue-400" : "",
+              dragOver === session.id ? "ring-l-2 border-l-2 border-l-blue-400" : "",
             ].join(" ")}
           >
-            <span>{session.title}</span>
+            <span className="flex-1 min-w-0 truncate text-left leading-none">{session.title}</span>
             {!session.isActive && (
-              <span className="text-neutral-500 text-xs">(exited)</span>
+              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-neutral-500" title="exited" />
             )}
             <span
               role="button"
               aria-label={`Close ${session.title}`}
               onClick={(e) => { e.stopPropagation(); handleClose(session.id); }}
-              className="ml-1 text-neutral-500 hover:text-neutral-200 leading-none"
+              className="shrink-0 px-1.5 py-0.5 text-neutral-500 hover:text-neutral-200 leading-none rounded hover:bg-neutral-700"
             >
               ×
             </span>
@@ -174,48 +159,14 @@ export function TabBar() {
         );
       })}
 
-      {/* "+" button: simple new tab when no panes, split menu when panes exist */}
-      {layout ? (
-        <div ref={menuRef} className="relative shrink-0">
-          <button
-            onClick={() => setShowSplitMenu((v) => !v)}
-            aria-label="New tab or split"
-            className="flex items-center justify-center w-8 h-9 text-neutral-400 hover:text-white hover:bg-neutral-800 focus:outline-none"
-          >
-            +
-          </button>
-          {showSplitMenu && (
-            <div className="absolute top-full left-0 z-50 min-w-[160px] bg-neutral-800 border border-neutral-700 rounded shadow-lg py-1">
-              <button
-                onClick={() => { setShowSplitMenu(false); setShowModal(true); }}
-                className="w-full px-3 py-1.5 text-sm text-left text-neutral-200 hover:bg-neutral-700"
-              >
-                New Tab  <kbd className="ml-1 text-xs text-neutral-500">⌘T</kbd>
-              </button>
-              <button
-                onClick={() => handleSplit("horizontal")}
-                className="w-full px-3 py-1.5 text-sm text-left text-neutral-200 hover:bg-neutral-700"
-              >
-                Split Horizontal  <kbd className="ml-1 text-xs text-neutral-500">⌘D</kbd>
-              </button>
-              <button
-                onClick={() => handleSplit("vertical")}
-                className="w-full px-3 py-1.5 text-sm text-left text-neutral-200 hover:bg-neutral-700"
-              >
-                Split Vertical  <kbd className="ml-1 text-xs text-neutral-500">⌘⇧D</kbd>
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowModal(true)}
-          aria-label="New tab"
-          className="flex items-center justify-center w-8 h-full text-neutral-400 hover:text-white hover:bg-neutral-800 shrink-0 focus:outline-none"
-        >
-          +
-        </button>
-      )}
+      {/* "+" always opens new session modal; split via ⌘D / ⌘⇧D or right-click */}
+      <button
+        onClick={() => setShowModal(true)}
+        aria-label="New tab"
+        className="flex items-center justify-center w-8 h-full shrink-0 text-neutral-400 hover:text-white hover:bg-neutral-800 focus:outline-none"
+      >
+        +
+      </button>
 
       {/* H1: Tab context menu */}
       {contextMenu && (
