@@ -60,7 +60,7 @@ function buildSshConfig(f: SshFormState): SessionConfig {
   } else if (f.authType === "sshAgent") {
     auth = { type: "sshAgent" };
   } else {
-    auth = { type: "password" };
+    auth = { type: "password", password: null };
   }
   const sshCfg: SshConfig = {
     host: f.host,

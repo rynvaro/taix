@@ -152,8 +152,8 @@ export type SplitDirection = "horizontal" | "vertical";
 
 // SSH authentication method.
 export type SshAuth = 
-// Password — user types it interactively in the PTY; never stored.
-{ type: "password" } | 
+// Password — stored optionally; auto-supplied via SSH_ASKPASS when set.
+{ type: "password"; password: string | null } | 
 // Private key file at the given path.
 { type: "privateKey"; path: string } | 
 // Delegate to the system SSH agent via SSH_AUTH_SOCK.

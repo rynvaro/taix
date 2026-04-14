@@ -34,10 +34,13 @@ export function TerminalPane() {
           <PaneContainer layout={layout!} />
         ) : (
           // Tab mode: keep-alive pool — sessions stay mounted, only visibility changes.
+          // Use `invisible` (visibility:hidden) instead of `hidden` (display:none) so
+          // the xterm canvas element stays in the render tree and doesn't lose its
+          // WebGL/Canvas context on platforms like Windows WebView2.
           sessions.map((session) => (
             <div
               key={session.id}
-              className={`absolute inset-0 ${session.id === activeSessionId ? "" : "hidden"}`}
+              className={`absolute inset-0 ${session.id === activeSessionId ? "" : "invisible pointer-events-none"}`}
             >
               <TerminalTab
                 sessionId={session.id}

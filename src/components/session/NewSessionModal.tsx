@@ -93,6 +93,8 @@ interface SshFormState {
   port: string;
   username: string;
   authType: SshAuthType;
+  password: string;
+  savePassword: boolean;
   keyPath: string;
   cwd: string;
 }
@@ -182,6 +184,28 @@ function SshForm({
         </Field>
       )}
 
+      {value.authType === "password" && (
+        <Field label="Password">
+          <input
+            className={inputCls}
+            type="password"
+            value={value.password}
+            onChange={(e) => f("password", e.target.value)}
+            placeholder="Leave blank to type at connect time"
+            autoComplete="current-password"
+          />
+          <label className="flex items-center gap-2 cursor-pointer mt-0.5">
+            <input
+              type="checkbox"
+              checked={value.savePassword}
+              onChange={(e) => onChange({ ...value, savePassword: e.target.checked })}
+              className="w-3.5 h-3.5 rounded accent-blue-500"
+            />
+            <span className="text-xs text-neutral-400">Save password (stored in local database)</span>
+          </label>
+        </Field>
+      )}
+
       <Field label="Remote initial directory (optional)">
         <input
           {...noAuto}
@@ -223,6 +247,8 @@ export function NewSessionModal({ onClose, editSession }: Props) {
     port: "22",
     username: "",
     authType: "password",
+    password: "",
+    savePassword: false,
     keyPath: "",
     cwd: "",
   });
@@ -235,12 +261,15 @@ export function NewSessionModal({ onClose, editSession }: Props) {
       const cfg = JSON.parse(editSession.config) as SessionConfig;
       if (cfg.type === "ssh") {
         setActiveTab("ssh");
+        const savedPw = cfg.auth.type === "password" ? (cfg.auth.password ?? "") : "";
         setSshForm({
           name: editSession.name,
           host: cfg.host,
           port: cfg.port.toString(),
           username: cfg.username,
           authType: cfg.auth.type as SshAuthType,
+          password: savedPw,
+          savePassword: savedPw !== "",
           keyPath: cfg.auth.type === "privateKey" ? cfg.auth.path : "",
           cwd: cfg.cwd ?? "",
         });
@@ -283,7 +312,10 @@ export function NewSessionModal({ onClose, editSession }: Props) {
     let auth: SshAuth;
     if (sshForm.authType === "privateKey") auth = { type: "privateKey", path: sshForm.keyPath };
     else if (sshForm.authType === "sshAgent") auth = { type: "sshAgent" };
-    else auth = { type: "password" };
+    else auth = {
+      type: "password",
+      password: (sshForm.savePassword && sshForm.password) ? sshForm.password : null,
+    };
     const ssh: SshConfig = {
       host: sshForm.host,
       port: parseInt(sshForm.port, 10) || 22,

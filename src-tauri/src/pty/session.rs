@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
+use uuid::Uuid;
 
 use crate::error::AppError;
 
@@ -33,8 +34,8 @@ pub struct LocalShellConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SshAuth {
-    /// Password — user types it interactively in the PTY; never stored.
-    Password,
+    /// Password — stored optionally; auto-supplied via SSH_ASKPASS when set.
+    Password { password: Option<String> },
     /// Private key file at the given path.
     PrivateKey { path: String },
     /// Delegate to the system SSH agent via SSH_AUTH_SOCK.
@@ -82,6 +83,8 @@ pub struct PtySession {
     _reader_thread: std::thread::JoinHandle<()>,
     /// Handle to the exit-watcher thread.
     _exit_thread: std::thread::JoinHandle<()>,
+    /// Temp askpass script path to clean up when session ends (password auth).
+    _askpass_cleanup: Option<PathBuf>,
 }
 
 impl PtySession {
@@ -93,6 +96,9 @@ impl PtySession {
         app_handle: AppHandle,
     ) -> Result<Self, AppError> {
         let id: SessionId = Uuid::new_v4().to_string();
+
+        // Will be populated when SSH password auth sets up an askpass script.
+        let mut askpass_cleanup: Option<PathBuf> = None;
 
         let pty_system = native_pty_system();
         let pty_pair = pty_system
@@ -138,8 +144,19 @@ impl PtySession {
                     SshAuth::SshAgent => {
                         // SSH_AUTH_SOCK is inherited from the parent process environment
                     }
-                    SshAuth::Password => {
-                        // User types the password interactively in the PTY
+                    SshAuth::Password { password } => {
+                        if let Some(pw) = password.as_deref().filter(|p| !p.is_empty()) {
+                            // Write a small temp script that echoes the password to stdout.
+                            // SSH will invoke it via SSH_ASKPASS instead of prompting the user.
+                            if let Ok(script_path) = create_askpass_script(pw) {
+                                builder.env("SSH_ASKPASS", script_path.to_str().unwrap_or(""));
+                                builder.env("SSH_ASKPASS_REQUIRE", "force");
+                                // No DISPLAY needed: SSH_ASKPASS_REQUIRE=force bypasses that check.
+                                // Store path for cleanup after session exits.
+                                askpass_cleanup = Some(script_path);
+                            }
+                        }
+                        // If no password stored (or script creation failed), user types interactively.
                     }
                 }
                 builder.arg(format!("{}@{}", cfg.username, cfg.host));
@@ -213,6 +230,7 @@ impl PtySession {
             writer,
             _reader_thread: reader_thread,
             _exit_thread: exit_thread,
+            _askpass_cleanup: askpass_cleanup,
         })
     }
 
@@ -266,6 +284,51 @@ unsafe impl Send for PtySession {}
 unsafe impl Sync for PtySession {}
 
 use std::io::Read;
+
+// ── Password askpass helper ───────────────────────────────────────────────────
+//
+// Creates a small temporary script that echoes the SSH password to stdout.
+// OpenSSH invokes SSH_ASKPASS to obtain the password non-interactively when
+// SSH_ASKPASS_REQUIRE=force is set.
+
+fn create_askpass_script(password: &str) -> Result<PathBuf, AppError> {
+    let filename = format!("taix-askpass-{}", Uuid::new_v4());
+    let path = std::env::temp_dir().join(filename);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut file = std::fs::File::create(&path)
+            .map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
+        // Use printf to avoid newline issues with echo on some shells.
+        writeln!(file, "#!/bin/sh").ok();
+        // Escape single quotes in the password: replace ' with '\''
+        let escaped = password.replace('\'', "'\\''");
+        writeln!(file, "printf '%s' '{}'", escaped).ok();
+        drop(file);
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| AppError::Pty(format!("askpass chmod: {e}")))?;
+    }
+
+    #[cfg(windows)]
+    {
+        let mut file = std::fs::File::create(&path)
+            .map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
+        // Windows batch script — rename to .bat
+        // OpenSSH on Windows can invoke .bat via cmd.exe.
+        let bat_path = path.with_extension("bat");
+        // Escape special chars for batch: % → %%
+        let escaped = password.replace('%', "%%");
+        writeln!(file, "@echo off\r\necho {}", escaped).ok();
+        drop(file);
+        std::fs::rename(&path, &bat_path)
+            .map_err(|e| AppError::Pty(format!("askpass rename: {e}")))?;
+        return Ok(bat_path);
+    }
+
+    #[allow(unreachable_code)]
+    Ok(path)
+}
 
 // ── G1: OSC title sequence parser ────────────────────────────────────────────
 //
