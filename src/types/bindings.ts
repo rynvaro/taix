@@ -88,6 +88,7 @@ export type AppearanceConfig = {
 	fontFamily: string,
 	fontSize: number,
 	opacity: number,
+	accentColor?: string,
 };
 
 // Configuration for a local shell session.

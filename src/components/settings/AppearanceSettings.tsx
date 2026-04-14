@@ -61,6 +61,24 @@ export function AppearanceSettings() {
         />
         <span className="ml-2 text-xs text-neutral-500">px (12–24)</span>
       </Field>
+
+      <Field label="Accent Color">
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={appearance?.accentColor ?? "#38bdf8"}
+            onChange={(e) => updateAppearance({ accentColor: e.target.value })}
+            className="w-8 h-8 rounded cursor-pointer border border-neutral-700 bg-neutral-800 p-0.5"
+          />
+          <input
+            type="text"
+            value={appearance?.accentColor ?? "#38bdf8"}
+            onChange={(e) => updateAppearance({ accentColor: e.target.value })}
+            placeholder="#38bdf8"
+            className="w-24 bg-neutral-800 border border-neutral-700 text-neutral-200 text-sm rounded px-2 py-1 focus:outline-none focus:border-blue-500 font-mono"
+          />
+        </div>
+      </Field>
     </div>
   );
 }

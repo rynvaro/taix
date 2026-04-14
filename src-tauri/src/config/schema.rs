@@ -32,6 +32,8 @@ pub struct AppearanceConfig {
     pub font_family: String,
     pub font_size: u8,
     pub opacity: f32,
+    #[serde(default = "AppearanceConfig::default_accent_color")]
+    pub accent_color: String,
 }
 
 impl Default for AppearanceConfig {
@@ -41,7 +43,14 @@ impl Default for AppearanceConfig {
             font_family: "JetBrains Mono, Menlo, monospace".into(),
             font_size: 14,
             opacity: 1.0,
+            accent_color: Self::default_accent_color(),
         }
+    }
+}
+
+impl AppearanceConfig {
+    fn default_accent_color() -> String {
+        "#38bdf8".into()
     }
 }
 

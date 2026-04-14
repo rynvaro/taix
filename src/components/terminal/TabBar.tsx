@@ -20,6 +20,7 @@ export function TabBar() {
   const reorderTabs = useSessionStore((s) => s.reorderTabs);
   const { activePaneId, splitPane, closePane, layout, initLayout } = useUiStore();
   const shellConfig = useSettingsStore((s) => s.config?.shell);
+  const accentColor = useSettingsStore((s) => s.config?.appearance?.accentColor ?? "#38bdf8");
 
   const [showModal, setShowModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -152,10 +153,11 @@ export function TabBar() {
               "flex items-center gap-1.5 h-full px-3 text-sm border-r border-neutral-700",
               "w-36 shrink-0 transition-colors focus:outline-none",
               isActive
-                ? "bg-neutral-800 text-white border-b-2 border-b-blue-400"
+                ? "bg-neutral-800 text-white border-b-2"
                 : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200",
               dragOver === session.id ? "ring-l-2 border-l-2 border-l-blue-400" : "",
             ].join(" ")}
+            style={isActive ? { borderBottomColor: accentColor } : undefined}
           >
             <span className="flex-1 min-w-0 truncate text-left leading-none">{session.title}</span>
             {!session.isActive && (
