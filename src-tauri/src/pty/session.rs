@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
-use uuid::Uuid;
 
 use crate::error::AppError;
 
@@ -298,8 +297,8 @@ fn create_askpass_script(password: &str) -> Result<PathBuf, AppError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut file = std::fs::File::create(&path)
-            .map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
+        let mut file =
+            std::fs::File::create(&path).map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
         // Use printf to avoid newline issues with echo on some shells.
         writeln!(file, "#!/bin/sh").ok();
         // Escape single quotes in the password: replace ' with '\''
@@ -312,8 +311,8 @@ fn create_askpass_script(password: &str) -> Result<PathBuf, AppError> {
 
     #[cfg(windows)]
     {
-        let mut file = std::fs::File::create(&path)
-            .map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
+        let mut file =
+            std::fs::File::create(&path).map_err(|e| AppError::Pty(format!("askpass: {e}")))?;
         // Windows batch script — rename to .bat
         // OpenSSH on Windows can invoke .bat via cmd.exe.
         let bat_path = path.with_extension("bat");
