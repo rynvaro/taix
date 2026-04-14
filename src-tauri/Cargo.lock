@@ -3854,7 +3854,7 @@ dependencies = [
 
 [[package]]
 name = "taix"
-version = "0.1.0"
+version = "0.6.7"
 dependencies = [
  "chrono",
  "dashmap",

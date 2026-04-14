@@ -67,11 +67,13 @@ interface SearchState {
   useRegex: boolean;
 }
 
+export type SidePanel = "sessions" | "search";
+
 interface UiState {
-  sidebarOpen: boolean;
+  activePanel: SidePanel | null;
   settingsOpen: boolean;
-  toggleSidebar: () => void;
-  setSidebarOpen: (open: boolean) => void;
+  setActivePanel: (panel: SidePanel | null) => void;
+  togglePanel: (panel: SidePanel) => void;
   openSettings: () => void;
   closeSettings: () => void;
   toggleSettings: () => void;
@@ -94,10 +96,11 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
-  sidebarOpen: true,
+  activePanel: "sessions",
   settingsOpen: false,
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  setActivePanel: (panel) => set({ activePanel: panel }),
+  togglePanel: (panel) =>
+    set((s) => ({ activePanel: s.activePanel === panel ? null : panel })),
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),

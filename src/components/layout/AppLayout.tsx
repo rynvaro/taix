@@ -5,12 +5,13 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { ptyDefaultShell } from "../../services/pty";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { StatusBar } from "./StatusBar";
+import { ActivityBar } from "./ActivityBar";
 import { SessionList } from "../session/SessionList";
+import { SearchPanel } from "../session/SearchPanel";
 import { NewSessionModal } from "../session/NewSessionModal";
 
 export function AppLayout() {
-  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const activePanel = useUiStore((s) => s.activePanel);
   const { layout, activePaneId, splitPane, closePane, setActivePaneId } =
     useUiStore();
   const { createSession, closeSession } = useSessionStore();
@@ -103,51 +104,49 @@ export function AppLayout() {
 
   return (
     <div className="flex flex-row w-screen h-screen overflow-hidden bg-neutral-950 text-neutral-100">
-      {/* Sidebar */}
-      <aside
-        className="flex flex-col bg-neutral-900 border-r border-neutral-700 overflow-hidden transition-[width] duration-200 ease-in-out shrink-0"
-        style={{ width: sidebarOpen ? 220 : 0 }}
-        aria-hidden={!sidebarOpen}
-      >
-        <div className="flex items-center justify-between px-3 h-9 border-b border-neutral-700">
-          <span className="text-sm font-semibold text-neutral-200">Taix</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowNewSession(true)}
-              aria-label="New session"
-              className="flex items-center justify-center w-6 h-6 rounded text-neutral-400 hover:text-white hover:bg-neutral-700"
-              title="New session (SSH or local)"
-            >
-              +
-            </button>
-            <button
-              onClick={toggleSidebar}
-              aria-label="Close sidebar"
-              className="text-neutral-400 hover:text-white"
-            >
-              ←
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <SessionList />
-        </div>
-      </aside>
+      {/* Activity Bar */}
+      <ActivityBar />
+
+      {/* Side Panel (sessions / search) */}
+      {activePanel && (
+        <aside
+          className="flex flex-col w-[220px] shrink-0 bg-neutral-900 border-r border-neutral-700 overflow-hidden"
+          aria-label={activePanel === "sessions" ? "Sessions" : "Search"}
+        >
+          {activePanel === "sessions" ? (
+            <>
+              <div className="flex items-center justify-between px-3 h-9 border-b border-neutral-700">
+                <span className="text-sm font-semibold text-neutral-200">Sessions</span>
+                <button
+                  onClick={() => setShowNewSession(true)}
+                  aria-label="New session"
+                  className="flex items-center justify-center w-6 h-6 rounded text-neutral-400 hover:text-white hover:bg-neutral-700"
+                  title="New session"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SessionList />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center px-3 h-9 border-b border-neutral-700">
+                <span className="text-sm font-semibold text-neutral-200">Search</span>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SearchPanel />
+              </div>
+            </>
+          )}
+        </aside>
+      )}
 
       {showNewSession && <NewSessionModal onClose={() => setShowNewSession(false)} />}
 
       {/* Main area */}
       <main className="flex flex-col flex-1 min-w-0">
-        {/* Sidebar toggle when collapsed */}
-        {!sidebarOpen && (
-          <button
-            onClick={toggleSidebar}
-            aria-label="Open sidebar"
-            className="absolute top-2 left-2 z-10 text-neutral-500 hover:text-white text-sm"
-          >
-            →
-          </button>
-        )}
         <TerminalPane />
         <StatusBar />
       </main>
